@@ -3,9 +3,8 @@ import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_typography.dart';
 
 import 'home_screen.dart';
-import 'steps_screen.dart';
-import 'calories_screen.dart';
-import 'profile_screen.dart';
+import 'health_screen.dart';
+import 'plant_protein_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -19,9 +18,8 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = const [
     HomeScreen(),
-    StepsScreen(),
-    CaloriesScreen(),
-    ProfileScreen(),
+    HealthScreen(),
+    PlantProteinScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -38,7 +36,10 @@ class _MainScreenState extends State<MainScreen> {
         duration: const Duration(milliseconds: 300),
         switchInCurve: Curves.easeOut,
         switchOutCurve: Curves.easeIn,
-        child: _screens[_selectedIndex],
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: _screens,
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -48,7 +49,7 @@ class _MainScreenState extends State<MainScreen> {
         child: NavigationBarTheme(
           data: NavigationBarThemeData(
             elevation: 0,
-            indicatorColor: AppColors.accent.withValues(alpha: 0.2), // Light highlight pill
+            indicatorColor: AppColors.accent.withOpacity(0.2), // Light highlight pill
             backgroundColor: Colors.transparent,
             labelTextStyle: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.selected)) {
@@ -62,24 +63,19 @@ class _MainScreenState extends State<MainScreen> {
             onDestinationSelected: _onItemTapped,
             destinations: const [
               NavigationDestination(
-                icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard_rounded, color: AppColors.accent),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.directions_walk_outlined),
-                selectedIcon: Icon(Icons.directions_walk_rounded, color: AppColors.accent),
-                label: 'Steps',
-              ),
-              NavigationDestination(
                 icon: Icon(Icons.local_fire_department_outlined),
                 selectedIcon: Icon(Icons.local_fire_department_rounded, color: AppColors.accent),
-                label: 'Diet',
+                label: 'FatBurner',
               ),
               NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded, color: AppColors.accent),
-                label: 'Profile',
+                icon: Icon(Icons.favorite_outline_rounded),
+                selectedIcon: Icon(Icons.favorite_rounded, color: AppColors.accent),
+                label: 'HEALTH',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.eco_outlined),
+                selectedIcon: Icon(Icons.eco_rounded, color: AppColors.accent),
+                label: 'Plant protein',
               ),
             ],
           ),
@@ -88,3 +84,4 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 }
+

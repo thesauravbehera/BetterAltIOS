@@ -19,9 +19,9 @@ class GreetingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final user = FirebaseAuth.instance.currentUser;
-    final name = (user?.displayName == null || user!.displayName!.isEmpty) 
+    final name = (user == null || user.displayName == null || user.displayName!.isEmpty) 
         ? 'Champion' 
-        : user.displayName!;
+        : user.displayName ?? 'Champion';
         
     final dateStr = DateFormat('EEEE, MMM d').format(DateTime.now());
 
@@ -35,16 +35,20 @@ class GreetingHeader extends StatelessWidget {
             style: AppTypography.label(color: AppColors.accent),
           ),
           const SizedBox(height: 4),
-          Row(
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               Text(
                 _getGreeting(),
-                style: AppTypography.h1(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary),
+                style: AppTypography.h2(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary),
               ),
-              const SizedBox(width: 8),
               Text(
                 name,
-                style: AppTypography.h1(color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
+                style: AppTypography.h2(color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

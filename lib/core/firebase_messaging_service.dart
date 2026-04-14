@@ -2,7 +2,10 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fat_burner/firebase_options.dart';
+import 'package:fat_burner/services/notification_service.dart';
 
 /// Handles FCM setup: permissions, token, foreground/background message handlers.
 /// Call [initialize] from main.dart after Firebase.initializeApp().
@@ -44,8 +47,13 @@ class FirebaseMessagingService {
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
-    // Handle message when app is in foreground
-    // You can show an in-app banner or update UI
+    if (message.notification != null) {
+      NotificationService.instance.showForegroundNotification(
+        message.hashCode,
+        message.notification!.title ?? 'New Message',
+        message.notification!.body ?? '',
+      );
+    }
   }
 
   void _handleNotificationTap(RemoteMessage message) {
@@ -64,7 +72,18 @@ class FirebaseMessagingService {
       token = await _messaging.getToken();
     }
     if (token != null) {
-      // TODO: Send token to your backend
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({
+            'fcmToken': token,
+            'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } catch (_) {}
+      }
     }
   }
 }

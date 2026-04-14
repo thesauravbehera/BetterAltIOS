@@ -12,10 +12,24 @@ class HealthService {
   static const List<HealthDataType> _typesToRead = [
     HealthDataType.STEPS,
     HealthDataType.ACTIVE_ENERGY_BURNED,
+    HealthDataType.TOTAL_CALORIES_BURNED,
+    HealthDataType.BASAL_ENERGY_BURNED,
     HealthDataType.WEIGHT,
+    HealthDataType.DISTANCE_WALKING_RUNNING,
+    HealthDataType.DISTANCE_DELTA,
+    HealthDataType.SLEEP_ASLEEP,
+    HealthDataType.SLEEP_SESSION,
+    HealthDataType.WATER,
   ];
 
   static const List<HealthDataAccess> _permissions = [
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
@@ -58,21 +72,43 @@ class HealthService {
     await configure();
     final now = DateTime.now();
     final midnight = DateTime(now.year, now.month, now.day);
-
-    final data = await _health.getHealthDataFromTypes(
-      types: const [HealthDataType.ACTIVE_ENERGY_BURNED],
-      startTime: midnight,
-      endTime: now,
-    );
-
     double total = 0;
 
-    for (final point in data) {
-      if (point.value is NumericHealthValue) {
-        total += (point.value as NumericHealthValue).numericValue;
+    try {
+      final activeData = await _health.getHealthDataFromTypes(
+        types: const [HealthDataType.ACTIVE_ENERGY_BURNED],
+        startTime: midnight,
+        endTime: now,
+      );
+      print("FatBurner DEBUG ActiveData Length: ${activeData.length}");
+      for (final point in activeData) {
+        if (point.value is NumericHealthValue) {
+          total += (point.value as NumericHealthValue).numericValue;
+        }
+      }
+    } catch (e) {
+      print("FatBurner DEBUG ActiveData Error: $e");
+    }
+
+    if (total == 0) {
+      try {
+        final totalData = await _health.getHealthDataFromTypes(
+          types: const [HealthDataType.TOTAL_CALORIES_BURNED],
+          startTime: midnight,
+          endTime: now,
+        );
+        print("FatBurner DEBUG TotalData Length: ${totalData.length}");
+        for (final point in totalData) {
+          if (point.value is NumericHealthValue) {
+            total += (point.value as NumericHealthValue).numericValue;
+          }
+        }
+      } catch (e) {
+        print("FatBurner DEBUG TotalData Error: $e");
       }
     }
 
+    print("FatBurner DEBUG Final Total Calories: $total");
     return total.round();
   }
 
@@ -151,56 +187,132 @@ class HealthService {
     final now = DateTime.now();
     final midnight = DateTime(now.year, now.month, now.day);
 
-    final types = [
-      HealthDataType.STEPS,
-      HealthDataType.ACTIVE_ENERGY_BURNED,
-      HealthDataType.DISTANCE_WALKING_RUNNING,
-    ];
-
-    final data = await _health.getHealthDataFromTypes(
-      startTime: midnight,
-      endTime: now,
-      types: types,
-    );
-
-    int steps = 0;
-    double calories = 0;
+    int steps = await getTodaySteps();
+    double calories = (await getTodayCaloriesBurned()).toDouble();
     double distance = 0;
+    double sleepMin = 0;
+    double waterLiters = 0;
 
-    for (final point in data) {
-      if (point.value is NumericHealthValue) {
-        final value = (point.value as NumericHealthValue).numericValue;
-
-        switch (point.type) {
-          case HealthDataType.STEPS:
-            steps += value.toInt();
-            break;
-          case HealthDataType.ACTIVE_ENERGY_BURNED:
-            calories += value;
-            break;
-          case HealthDataType.DISTANCE_WALKING_RUNNING:
-            distance += value;
-            break;
-          default:
-            break;
-        }
+    // Fetch Distance safely
+    try {
+      final distData = await _health.getHealthDataFromTypes(
+        startTime: midnight, endTime: now, types: [HealthDataType.DISTANCE_WALKING_RUNNING, HealthDataType.DISTANCE_DELTA]
+      );
+      for (final p in distData) {
+        if (p.value is NumericHealthValue) distance += (p.value as NumericHealthValue).numericValue;
       }
+    } catch (e) {
+      print("FatBurner DEBUG Distance Error: $e");
     }
+    
+    // Fallback: If Health Connect doesn't explicitly sync distance, calculate it from steps (average human stride ~ 0.762m)
+    if (distance == 0 && steps > 0) {
+      distance = steps * 0.762;
+    }
+
+    // Fetch Sleep safely
+    try {
+      final sleepData = await _health.getHealthDataFromTypes(
+        startTime: midnight.subtract(const Duration(hours: 18)), endTime: now, types: [HealthDataType.SLEEP_ASLEEP, HealthDataType.SLEEP_SESSION]
+      );
+      for (final p in sleepData) {
+        // Sleep on Android/iOS can be SleepHealthValue or other variants. Safest is to use the duration interval.
+        sleepMin += p.dateTo.difference(p.dateFrom).inMinutes.toDouble();
+      }
+    } catch (e) {
+      print("FatBurner DEBUG Sleep Error: $e");
+    }
+
+    // Fetch Water safely
+    try {
+      final waterData = await _health.getHealthDataFromTypes(
+        startTime: midnight, endTime: now, types: [HealthDataType.WATER]
+      );
+      for (final p in waterData) {
+        if (p.value is NumericHealthValue) waterLiters += (p.value as NumericHealthValue).numericValue;
+      }
+    } catch (e) {
+      print("FatBurner DEBUG Water Error: $e");
+    }
+
+    print("FatBurner DEBUG Results - Steps: $steps, Calories: $calories, Dist: $distance, Sleep: $sleepMin, Water: $waterLiters");
 
     final rawData = {
       'steps': steps,
       'calories': calories,
-      'distance': distance,
+      'distance': distance / 1000.0, // convert meters to kilometers
+      'sleep': sleepMin / 60.0, // convert to hours
+      'water': waterLiters,
     };
 
-    return normalizeHealthData(rawData);
+    return rawData;
   }
 
-  /// Check availability
   Future<bool> isAvailable() async {
     if (Platform.isAndroid) {
       return _health.isHealthConnectAvailable();
     }
     return true;
+  }
+
+  /// Live 7-Day Steps Polling
+  Future<List<int>> fetch7DaysSteps() async {
+    await configure();
+    List<int> stepsList = [];
+    final now = DateTime.now();
+    for (int i = 6; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final midnight = DateTime(date.year, date.month, date.day);
+      
+      // For today, fetch up to 'now', for previous days fetch up to 23:59:59
+      final endTime = (i == 0) ? now : DateTime(date.year, date.month, date.day, 23, 59, 59);
+      
+      final steps = await _health.getTotalStepsInInterval(midnight, endTime);
+      stepsList.add(steps ?? 0);
+    }
+    return stepsList;
+  }
+
+  /// Live 7-Day Calories Polling
+  Future<List<int>> fetch7DaysCalories() async {
+    await configure();
+    List<int> calList = [];
+    final now = DateTime.now();
+    for (int i = 6; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final midnight = DateTime(date.year, date.month, date.day);
+      final endTime = (i == 0) ? now : DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+      final data = await _health.getHealthDataFromTypes(
+        types: const [HealthDataType.ACTIVE_ENERGY_BURNED],
+        startTime: midnight,
+        endTime: endTime,
+      );
+
+      double total = 0;
+      for (final point in data) {
+        if (point.value is NumericHealthValue) {
+          total += (point.value as NumericHealthValue).numericValue.toDouble();
+        }
+      }
+
+      if (total == 0) {
+        try {
+          final totalData = await _health.getHealthDataFromTypes(
+            types: const [HealthDataType.TOTAL_CALORIES_BURNED],
+            startTime: midnight,
+            endTime: endTime,
+          );
+          for (final point in totalData) {
+            if (point.value is NumericHealthValue) {
+              total += (point.value as NumericHealthValue).numericValue.toDouble();
+            }
+          }
+        } catch (_) {}
+      }
+
+      calList.add(total.round());
+    }
+    return calList;
   }
 }

@@ -1,12 +1,18 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
+import 'dart:ui' as dart_ui;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_typography.dart';
 import 'package:fat_burner/theme/app_spacing.dart';
+import 'package:fat_burner/widgets/app_text_field.dart';
+import 'package:fat_burner/widgets/auto_scrolling_slider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,42 +41,123 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_errorMessage != null) setState(() => _errorMessage = null);
   }
 
+  Future<void> _checkOnboardingAndRoute(User user) async {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final data = doc.data();
+    if (data != null && data['onboardingCompleted'] == true) {
+      if (mounted) context.go('/dashboard');
+    } else {
+      if (mounted) context.go('/onboarding');
+    }
+  }
+
   Future<void> _handleLogin() async {
     _clearError();
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
+    FocusScope.of(context).unfocus();
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = 'Please enter email and password');
       return;
     }
 
     setState(() => _isLoading = true);
+
     try {
-      // Temporarily bypass Firebase Auth for UI development:
-      // await FirebaseAuth.instance.signInWithEmailAndPassword(
-      //   email: _emailController.text.trim(),
-      //   password: _passwordController.text.trim(),
-      // );
-      
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
       // Simulate auth delay for UI preview
       await Future.delayed(const Duration(milliseconds: 600));
 
-      if (mounted) {
-        context.go('/dashboard'); // Go straight to dashboard to test the inner app
+      if (userCredential.user != null) {
+        await _checkOnboardingAndRoute(userCredential.user!);
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = e.message ?? 'Authentication failed';
-        _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _errorMessage = 'An error occurred';
-        _isLoading = false;
       });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  // Raw SVGs provided from HTML template
+  Future<void> _signInWithGoogle() async {
+    _clearError();
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return; 
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        await _checkOnboardingAndRoute(userCredential.user!);
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _errorMessage = e.message ?? 'Google Sign-In failed');
+    } catch (e) {
+      setState(() => _errorMessage = 'An error occurred during Google Sign-In: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    _clearError();
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    try {
+      final AuthorizationCredentialAppleID appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final OAuthProvider oAuthProvider = OAuthProvider('apple.com');
+      final AuthCredential credential = oAuthProvider.credential(
+        idToken: appleCredential.identityToken,
+        accessToken: appleCredential.authorizationCode,
+      );
+
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        await _checkOnboardingAndRoute(userCredential.user!);
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _errorMessage = e.message ?? 'Apple Sign-In failed');
+    } catch (e) {
+      setState(() => _errorMessage = 'An error occurred during Apple Sign-In');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   static const String svgmail =
       '''<svg height="20" viewBox="0 0 32 32" width="20" xmlns="http://www.w3.org/2000/svg"><g id="Layer_3" data-name="Layer 3"><path d="m30.853 13.87a15 15 0 0 0 -29.729 4.082 15.1 15.1 0 0 0 12.876 12.918 15.6 15.6 0 0 0 2.016.13 14.85 14.85 0 0 0 7.715-2.145 1 1 0 1 0 -1.031-1.711 13.007 13.007 0 1 1 5.458-6.529 2.149 2.149 0 0 1 -4.158-.759v-10.856a1 1 0 0 0 -2 0v1.726a8 8 0 1 0 .2 10.325 4.135 4.135 0 0 0 7.83.274 15.2 15.2 0 0 0 .823-7.455zm-14.853 8.13a6 6 0 1 1 6-6 6.006 6.006 0 0 1 -6 6z" fill="#9B9E8E" /></g></svg>''';
   static const String svgLock =
@@ -86,390 +173,291 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.canvasDark : AppColors.canvasLight,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: FadeInUp(
-              duration: const Duration(milliseconds: 600),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
-                  color:
-                      isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(AppRadius.card),
-                  // Removed heavy shadow to adhere strictly to CaFit 60-30-10 style
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    /// Animated Logo Component
-                    Center(
-                      child: Pulse(
-                        duration: const Duration(milliseconds: 1500),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppColors.canvasDark : Colors.white,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: FadeInUp(
+                duration: const Duration(milliseconds: 600),
+                child: Container(
+                  width: double.infinity,
+                  // Padding removed from container to allow full-width logo
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(AppRadius.card),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 30),
+                      /// Main Logo
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+                        child: Image.asset(
+                          'images/Betteralt_main_logo.jpeg',
+                          width: double.infinity,
+                          fit: BoxFit.fitWidth,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Placeholder(
+                              fallbackHeight: 60,
+                              fallbackWidth: double.infinity,
+                              color: AppColors.accent,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 30.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'BetterAlt',
-                              style: AppTypography.h1(
-                                color: isDark
-                                    ? AppColors.textOnDark
-                                    : AppColors.textPrimary,
-                              ).copyWith(
-                                  fontFamily: 'Newsreader', fontSize: 32),
-                            ),
-                            const SizedBox(width: 4),
-                            Container(
-                              height: 12,
-                              width: 12,
-                              margin: const EdgeInsets.only(top: 10),
-                              decoration: const BoxDecoration(
-                                color: AppColors.accent,
-                                shape: BoxShape
-                                    .circle, // using a dot to represent the leaf shape in logo
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
 
-                    /// Fitness Animation Lottie
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.accent.withAlpha(40),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.fitness_center_rounded,
-                          size: 64,
-                          color: AppColors.accent,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
 
-                    Center(
-                      child: Text(
-                        "Welcome back",
-                        style: AppTypography.h2(
-                            color: isDark
-                                ? AppColors.textOnDark
-                                : AppColors.textPrimary),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Center(
-                      child: Text(
-                        "Sign in to continue",
-                        style: AppTypography.body(
-                            color: isDark
-                                ? AppColors.textOnDarkMuted
-                                : AppColors.textSecondary),
-                      ),
-                    ),
-
-                    const SizedBox(height: 35),
-
-                    /// Error Banner
-                    if (_errorMessage != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
+                      Center(
                         child: Text(
-                          _errorMessage!,
-                          style: AppTypography.caption(color: AppColors.error),
+                          "Welcome back",
+                          style: AppTypography.h2(
+                              color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
                         ),
+                      ),
+                      const SizedBox(height: 5),
+                      Center(
+                        child: Text(
+                          "Sign in to continue",
+                          style: AppTypography.body(
+                              color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary),
+                        ),
+                      ),
+
+                      const SizedBox(height: 35),
+
+                      /// Error Banner
+                      if (_errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
+                          child: Text(
+                            _errorMessage!,
+                            style: AppTypography.caption(color: AppColors.error),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      AppTextField(
+                        label: 'Email',
+                        hint: 'Enter your Email',
+                        controller: _emailController,
+                        prefixIcon: Icons.alternate_email_rounded,
+                        keyboardType: TextInputType.emailAddress,
+                        isPremiumWhite: true,
                       ),
                       const SizedBox(height: 20),
-                    ],
-
-                    /// Email Field
-                    Text("Email",
-                        style: AppTypography.h3(
-                                color: isDark
-                                    ? AppColors.textOnDark
-                                    : AppColors.textPrimary)
-                            .copyWith(fontSize: 14)),
-                    const SizedBox(height: 10),
-                    _buildInputForm(
-                      isDark: isDark,
-                      controller: _emailController,
-                      hintText: 'Enter your Email',
-                      prefixIcon: svgmail,
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    /// Password Field
-                    Text("Password",
-                        style: AppTypography.h3(
-                                color: isDark
-                                    ? AppColors.textOnDark
-                                    : AppColors.textPrimary)
-                            .copyWith(fontSize: 14)),
-                    const SizedBox(height: 10),
-                    _buildInputForm(
-                      isDark: isDark,
-                      controller: _passwordController,
-                      hintText: 'Enter your Password',
-                      obscureText: _obscurePassword,
-                      prefixIcon: svgLock,
-                      suffixAction: GestureDetector(
-                        onTap: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: SvgPicture.string(svgEye,
-                              colorFilter: ColorFilter.mode(
-                                  isDark
-                                      ? AppColors.textOnDarkMuted
-                                      : AppColors.textTertiary,
-                                  BlendMode.srcIn)),
-                        ),
-                      ),
-                      keyboardType: TextInputType.visiblePassword,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    /// Row: Remember Me & Forgot Password
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: Checkbox(
-                                value: _rememberMe,
-                                onChanged: (val) =>
-                                    setState(() => _rememberMe = val!),
-                                activeColor: AppColors.structurePrimary,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(4)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text("Remember me",
-                                style: AppTypography.body(
-                                        color: isDark
-                                            ? AppColors.textOnDark
-                                            : AppColors.textPrimary)
-                                    .copyWith(fontSize: 14)),
-                          ],
-                        ),
-                        GestureDetector(
-                          onTap: () {},
-                          child: Text(
-                            "Forgot password?",
-                            style: AppTypography.body(color: AppColors.info)
-                                .copyWith(
-                                    fontSize: 14, fontWeight: FontWeight.w500),
+                      AppTextField(
+                        label: 'Password',
+                        hint: 'Enter your Password',
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        prefixIcon: Icons.lock_outline_rounded,
+                        suffixIcon: GestureDetector(
+                          onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                          child: Icon(
+                            _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                            color: isDark ? AppColors.textOnDarkMuted : AppColors.textTertiary,
+                            size: 20,
                           ),
                         ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    /// Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isDark
-                              ? AppColors.surfaceElevated
-                              : AppColors.textPrimary,
-                          foregroundColor: isDark
-                              ? AppColors.textPrimary
-                              : AppColors.textOnAccent,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: _isLoading ? null : _handleLogin,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                            : Text("Sign In",
-                                style: AppTypography.h3(
-                                        color: isDark
-                                            ? AppColors.textPrimary
-                                            : AppColors.textOnAccent)
-                                    .copyWith(fontSize: 15)),
+                        keyboardType: TextInputType.visiblePassword,
+                        isPremiumWhite: true,
                       ),
-                    ),
+                      const SizedBox(height: 20),
 
-                    const SizedBox(height: 20),
-
-                    /// Don't have an account
-                    Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      /// Row: Remember Me & Forgot Password
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            "Don't have an account? ",
-                            style: AppTypography.body(
-                                    color: isDark
-                                        ? AppColors.textOnDark
-                                        : AppColors.textPrimary)
-                                .copyWith(fontSize: 14),
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  value: _rememberMe,
+                                  onChanged: (val) => setState(() => _rememberMe = val!),
+                                  activeColor: AppColors.structurePrimary,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text("Remember me",
+                                  style: AppTypography.body(
+                                          color: isDark
+                                              ? AppColors.textOnDark
+                                              : AppColors.textPrimary)
+                                      .copyWith(fontSize: 14)),
+                            ],
                           ),
                           GestureDetector(
-                            onTap: () => context.push(
-                                '/signup'), // Assumes signup routing is set up
+                            onTap: () async {
+                              FocusScope.of(context).unfocus();
+
+                              final email = _emailController.text.trim();
+
+                              if (email.isEmpty) {
+                                setState(() => _errorMessage = 'Enter email to reset password');
+                                return;
+                              }
+
+                              try {
+                                await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+
+                                if (!mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Password reset email sent')),
+                                );
+                              } catch (e) {
+                                setState(() => _errorMessage = 'Failed to send reset email');
+                              }
+                            },
                             child: Text(
-                              "Sign Up",
+                              "Forgot password?",
                               style: AppTypography.body(color: AppColors.info)
-                                  .copyWith(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500),
+                                  .copyWith(fontSize: 14, fontWeight: FontWeight.w500),
                             ),
                           ),
                         ],
                       ),
-                    ),
 
-                    const SizedBox(height: 20),
-                    Center(
-                        child: Text("Or With",
-                            style: AppTypography.body(
-                                    color: isDark
-                                        ? AppColors.textOnDarkMuted
-                                        : AppColors.textSecondary)
-                                .copyWith(fontSize: 14))),
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 30),
 
-                    /// Social Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: BorderSide(
-                                  color: isDark
-                                      ? AppColors.borderDark
-                                      : AppColors.borderLight,
-                                  width: 1.5),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
-                            icon: SvgPicture.string(svgGoogle, height: 20),
-                            label: Text("Google",
-                                style: AppTypography.bodyMedium(
-                                    color: isDark
-                                        ? AppColors.textOnDark
-                                        : AppColors.textPrimary)),
-                            onPressed: () {},
+                      /// Submit Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? AppColors.surfaceElevated : AppColors.textPrimary,
+                            foregroundColor: isDark ? AppColors.textPrimary : AppColors.textOnAccent,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
+                          onPressed: _isLoading ? null : _handleLogin,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : Text("Sign In",
+                                  style: AppTypography.h3(
+                                          color: isDark ? AppColors.textPrimary : AppColors.textOnAccent)
+                                      .copyWith(fontSize: 15)),
                         ),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: BorderSide(
-                                  color: isDark
-                                      ? AppColors.borderDark
-                                      : AppColors.borderLight,
-                                  width: 1.5),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      /// Don't have an account
+                      Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Don't have an account? ",
+                              style: AppTypography.body(
+                                      color: isDark ? AppColors.textOnDark : AppColors.textPrimary)
+                                  .copyWith(fontSize: 14),
                             ),
-                            icon: SvgPicture.string(svgApple,
-                                height: 20,
-                                colorFilter: ColorFilter.mode(
-                                    isDark ? Colors.white : Colors.black,
-                                    BlendMode.srcIn)),
-                            label: Text("Apple",
-                                style: AppTypography.bodyMedium(
-                                    color: isDark
-                                        ? AppColors.textOnDark
-                                        : AppColors.textPrimary)),
-                            onPressed: () {},
-                          ),
+                            TextButton(
+                              onPressed: () {
+                                FocusScope.of(context).unfocus();
+                                context.push('/signup');
+                              },
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                "Sign Up",
+                                style: AppTypography.body(color: AppColors.info)
+                                    .copyWith(fontSize: 14, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+
+                      const SizedBox(height: 20),
+                      Center(
+                          child: Text("Or With",
+                              style: AppTypography.body(
+                                      color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)
+                                  .copyWith(fontSize: 14))),
+                      const SizedBox(height: 20),
+
+                      /// Social Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: BorderSide(
+                                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                                    width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: SvgPicture.string(svgGoogle, height: 20),
+                              label: Text("Google",
+                                  style: AppTypography.bodyMedium(
+                                      color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+                              onPressed: _isLoading ? null : _signInWithGoogle,
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: BorderSide(
+                                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                                    width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: SvgPicture.string(svgApple,
+                                  height: 20,
+                                  colorFilter: ColorFilter.mode(
+                                      isDark ? Colors.white : Colors.black, BlendMode.srcIn)),
+                              label: Text("Apple",
+                                  style: AppTypography.bodyMedium(
+                                      color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+                              onPressed: _isLoading ? null : _signInWithApple,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 30),
+                      ], // end inner column children
+                    ), // end inner Column
+                  ), // end inner Padding
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInputForm({
-    required bool isDark,
-    required TextEditingController controller,
-    required String hintText,
-    required String prefixIcon,
-    Widget? suffixAction,
-    bool obscureText = false,
-    TextInputType? keyboardType,
-  }) {
-    return Container(
-      height: 50,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.canvasDark : AppColors.surfaceLight,
-        border: Border.all(
-            color: isDark ? AppColors.borderDark : AppColors.borderLight,
-            width: 1.5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0),
-            child: SvgPicture.string(prefixIcon,
-                colorFilter: ColorFilter.mode(
-                    isDark ? AppColors.textOnDarkMuted : AppColors.textTertiary,
-                    BlendMode.srcIn)),
-          ),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              obscureText: obscureText,
-              keyboardType: keyboardType,
-              style: AppTypography.body(
-                  color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: hintText,
-                hintStyle: AppTypography.body(
-                    color: isDark
-                        ? AppColors.textOnDarkMuted
-                        : AppColors.textTertiary),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                fillColor: Colors.transparent,
-                filled: true,
-                contentPadding:
-                    const EdgeInsets.only(bottom: 2), // centers text vertical
-              ),
-            ),
-          ),
-          if (suffixAction != null) suffixAction,
-        ],
       ),
     );
   }

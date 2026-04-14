@@ -1,8 +1,7 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fat_burner/services/shopify_purchase_service.dart';
 
-/// Holds purchase status (Plant Protein) in app state.
+/// Holds purchase status (Fat Burner) in app state.
 /// Handles loading, errors, and result.
 class PurchaseStatusProvider extends ChangeNotifier {
   PurchaseStatusProvider._();
@@ -43,14 +42,11 @@ class PurchaseStatusProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _hasPurchased = await _purchaseService.hasPurchasedPlantProtein(
+      _hasPurchased = await _purchaseService.hasPurchasedFatBurner(
         email: email?.trim().isEmpty == true ? null : email?.trim(),
         phone: phone?.trim().isEmpty == true ? null : phone?.trim(),
       );
       _error = null;
-    } on FirebaseFunctionsException catch (e) {
-      _error = _messageFromException(e);
-      _hasPurchased = null;
     } on ArgumentError catch (e) {
       _error = e.message ?? 'Invalid input';
       _hasPurchased = null;
@@ -68,22 +64,5 @@ class PurchaseStatusProvider extends ChangeNotifier {
     _error = null;
     _hasPurchased = null;
     notifyListeners();
-  }
-
-  String _messageFromException(FirebaseFunctionsException e) {
-    switch (e.code) {
-      case 'unauthenticated':
-        return 'Please sign in to check purchase status.';
-      case 'invalid-argument':
-        return e.message ?? 'Invalid email or phone.';
-      case 'failed-precondition':
-        return 'Service not configured. Contact support.';
-      case 'internal':
-        return e.message ?? 'Service unavailable. Try again later.';
-      case 'unavailable':
-        return 'Service temporarily unavailable.';
-      default:
-        return e.message ?? 'Something went wrong.';
-    }
   }
 }

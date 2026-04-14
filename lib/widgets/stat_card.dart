@@ -11,6 +11,8 @@ class StatCard extends StatelessWidget {
   final IconData icon;
   final Color? colorOverride;
   final int index;
+  final String? actionText;
+  final VoidCallback? onTapAction;
 
   const StatCard({
     super.key,
@@ -20,6 +22,8 @@ class StatCard extends StatelessWidget {
     required this.icon,
     this.colorOverride,
     this.index = 0,
+    this.actionText,
+    this.onTapAction,
   });
 
   @override
@@ -61,7 +65,7 @@ class StatCard extends StatelessWidget {
                 ),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 12),
             Text(
               value,
               style: AppTypography.statMedium(color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
@@ -71,6 +75,28 @@ class StatCard extends StatelessWidget {
               subtitle,
               style: AppTypography.body(color: accentColor).copyWith(fontSize: 13, fontWeight: FontWeight.w600),
             ),
+            if (actionText != null && onTapAction != null) ...[
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: onTapAction,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      actionText!,
+                      style: AppTypography.caption(color: accentColor).copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

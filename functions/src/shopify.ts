@@ -4,7 +4,7 @@
  */
 
 const SHOPIFY_API_VERSION = '2024-01';
-const PLANT_PROTEIN_PRODUCT_NAME = 'Plant Protein';
+const FAT_BURNER_PRODUCT_NAME = 'Fat Burner';
 
 export interface ShopifyConfig {
   shopDomain: string;
@@ -80,8 +80,8 @@ async function shopifyGraphQL<T>(
   return json.data;
 }
 
-function hasPlantProteinInOrder(order: OrderNode): boolean {
-  const productNameLower = PLANT_PROTEIN_PRODUCT_NAME.toLowerCase();
+function hasFatBurnerInOrder(order: OrderNode): boolean {
+  const productNameLower = FAT_BURNER_PRODUCT_NAME.toLowerCase();
 
   for (const edge of order.lineItems.edges) {
     const title = edge.node.title?.toLowerCase() ?? '';
@@ -123,16 +123,16 @@ async function fetchOrdersByEmail(config: ShopifyConfig, email: string): Promise
     const escapedEmail = email.replace(/"/g, '\\"');
     const searchQuery = `email:"${escapedEmail}"`;
 
-    const data = await shopifyGraphQL<OrdersQueryResult>(config, query, {
+    const resultData: OrdersQueryResult = await shopifyGraphQL<OrdersQueryResult>(config, query, {
       query: searchQuery,
       cursor,
     });
 
-    for (const edge of data.orders.edges) {
+    for (const edge of resultData.orders.edges) {
       orders.push(edge.node);
     }
 
-    cursor = data.orders.pageInfo.hasNextPage ? data.orders.pageInfo.endCursor : null;
+    cursor = resultData.orders.pageInfo.hasNextPage ? resultData.orders.pageInfo.endCursor : null;
   } while (cursor);
 
   return orders;
@@ -193,25 +193,25 @@ async function fetchOrdersByPhone(config: ShopifyConfig, phone: string): Promise
   `;
 
   do {
-    const data = await shopifyGraphQL<OrdersQueryResult>(config, ordersQuery, {
+    const resultData: OrdersQueryResult = await shopifyGraphQL<OrdersQueryResult>(config, ordersQuery, {
       query: `customer_id:${numericId}`,
       cursor,
     });
 
-    for (const edge of data.orders.edges) {
+    for (const edge of resultData.orders.edges) {
       orders.push(edge.node);
     }
 
-    cursor = data.orders.pageInfo.hasNextPage ? data.orders.pageInfo.endCursor : null;
+    cursor = resultData.orders.pageInfo.hasNextPage ? resultData.orders.pageInfo.endCursor : null;
   } while (cursor);
 
   return orders;
 }
 
 /**
- * Checks if the user has purchased "Plant Protein" by email or phone.
+ * Checks if the user has purchased "Fat Burner" by email or phone.
  */
-export async function hasPurchasedPlantProtein(
+export async function hasPurchasedFatBurner(
   config: ShopifyConfig,
   email?: string,
   phone?: string
@@ -231,7 +231,7 @@ export async function hasPurchasedPlantProtein(
   }
 
   for (const order of orders) {
-    if (hasPlantProteinInOrder(order)) {
+    if (hasFatBurnerInOrder(order)) {
       return true;
     }
   }
