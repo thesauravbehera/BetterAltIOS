@@ -18,18 +18,19 @@ interface CheckPurchaseRequest {
   phone?: string;
 }
 
-function getShopifyConfig(): { shopDomain: string; accessToken: string } {
+function getShopifyConfig(): { shopDomain: string; clientId: string; clientSecret: string } {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN ?? '';
-  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN ?? '';
+  const clientId = process.env.SHOPIFY_CLIENT_ID ?? '';
+  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET ?? '';
 
-  if (!shopDomain || !accessToken) {
+  if (!shopDomain || !clientId || !clientSecret) {
     throw new HttpsError(
       'failed-precondition',
-      'Shopify is not configured. Set SHOPIFY_SHOP_DOMAIN and SHOPIFY_ACCESS_TOKEN.'
+      'Shopify is not configured. Set SHOPIFY_SHOP_DOMAIN, SHOPIFY_CLIENT_ID, and SHOPIFY_CLIENT_SECRET in .env.'
     );
   }
 
-  return { shopDomain, accessToken };
+  return { shopDomain, clientId, clientSecret };
 }
 
 export const checkFatBurnerPurchase = onCall(

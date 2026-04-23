@@ -8,7 +8,50 @@ const FAT_BURNER_PRODUCT_NAME = 'Fat Burner';
 
 export interface ShopifyConfig {
   shopDomain: string;
-  accessToken: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+let cachedAccessToken: string | null = null;
+let tokenExpiryTime: number = 0;
+
+async function getAccessToken(config: ShopifyConfig): Promise<string> {
+  const now = Date.now();
+  
+  // Reuse token if it is valid (with 5 min buffer 23h 55m)
+  if (cachedAccessToken && now < tokenExpiryTime) {
+    return cachedAccessToken;
+  }
+
+  console.log(`[Shopify] Fetching fresh 24-hr access token...`);
+  
+  const url = `https://${config.shopDomain}/admin/oauth/access_token`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      grant_type: 'client_credentials'
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error(`[Shopify OAuth Error] ${errText}`);
+    throw new Error(`Failed to generate Shopify access token: ${response.status}`);
+  }
+
+  const data = await response.json() as any;
+  if (!data.access_token) {
+    throw new Error('No access token returned from Shopify Client Credentials grant');
+  }
+
+  cachedAccessToken = data.access_token;
+  tokenExpiryTime = now + (23 * 60 * 60 * 1000); // Expires in 24h, we cache for 23h to be safe
+  
+  console.log(`[Shopify] Successfully generated new access token.`);
+  return cachedAccessToken as string;
 }
 
 interface ShopifyGraphQLResponse<T> {
@@ -52,13 +95,15 @@ async function shopifyGraphQL<T>(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
+  const token = await getAccessToken(config);
+  
   const url = `https://${config.shopDomain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': config.accessToken,
+      'X-Shopify-Access-Token': token,
     },
     body: JSON.stringify({ query, variables }),
   });
