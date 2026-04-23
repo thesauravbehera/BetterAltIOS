@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterAlt - Reset Password</title>
+    <style>
+        :root {
+            --primary: #94A3B8; /* Match BetterAlt primary if applicable, using slate for modern look */
+            --accent: #FF5E3A; /* Use BetterAlt orange/red accent */
+            --bg: #121212;
+            --surface: #1E1E1E;
+            --text-main: #FFFFFF;
+            --text-sec: #A1A1AA;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: var(--surface);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #FF7B00, #FF5E3A);
+            margin: 0 auto 24px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 4px 10px rgba(255, 94, 58, 0.3);
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        p {
+            color: var(--text-sec);
+            font-size: 14px;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-sec);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
+            background-color: #2A2A2A;
+            border: 1px solid #3F3F46;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="password"]:focus {
+            border-color: var(--accent);
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #FF7B00, #FF5E3A);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        #message {
+            margin-top: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+        }
+        
+        #message.error {
+            color: #EF4444;
+            display: block;
+        }
+        
+        #message.success {
+            color: #10B981;
+            display: block;
+        }
+
+        /* Loading Spinner */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container" id="reset-container">
+        <div class="logo">BA</div>
+        <h2>Reset Password</h2>
+        <p>Please enter your new password below for your BetterAlt account.</p>
+
+        <form id="reset-form">
+            <div class="input-group">
+                <label for="new-password">New Password</label>
+                <input type="password" id="new-password" placeholder="Min. 6 characters" required minlength="6">
+            </div>
+            
+            <button type="submit" id="submit-btn">
+                <span id="btn-text">Reset Password</span>
+                <div class="loader" id="loader"></div>
+            </button>
+        </form>
+
+        <div id="message"></div>
+    </div>
+
+    <!-- Firebase SDK Setup -->
+    <!-- REPLACE 'YOUR_API_KEY' with your actual Firebase Web API Key from the Console -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getAuth, confirmPasswordReset, verifyPasswordResetCode } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+        // TO DO: Replace this with your actual Web API Key
+        // You can find it in Firebase Console -> Project Settings -> General -> Web API Key
+        const firebaseConfig = {
+            apiKey: "AIzaSyAKWv8v2Hb5-Hl77tiXbHH_uAX8mwiwMVE", 
+            authDomain: "fatburner---app.firebaseapp.com",
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Get the out-of-band (OOB) code from the URL parameters (passed by the email link)
+        const urlParams = new URLSearchParams(window.location.search);
+        const actionCode = urlParams.get('oobCode');
+
+        const messageEl = document.getElementById('message');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.getElementById('btn-text');
+        const loader = document.getElementById('loader');
+
+        // Optional: Verify the code and fetch the user's email to display it (uncomment if you want:
+        /*
+        if (actionCode) {
+            verifyPasswordResetCode(auth, actionCode).then((email) => {
+                document.querySelector('p').innerText = `Resetting password for ${email}`;
+            }).catch((error) => {
+                showError("Invalid or expired reset link. Please try again from the app.");
+                document.getElementById('reset-form').style.display = 'none';
+            });
+        } else {
+            showError("No reset code found. Please use the link sent to your email.");
+            document.getElementById('reset-form').style.display = 'none';
+        }
+        */
+
+        if(!actionCode) {
+            showError("No reset code found. Please use the link sent to your email.");
+            document.getElementById('reset-form').style.display = 'none';
+        }
+
+        document.getElementById('reset-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newPassword = document.getElementById('new-password').value;
+
+            if (newPassword.length < 6) {
+                showError("Password must be at least 6 characters.");
+                return;
+            }
+
+            setLoading(true);
+
+            confirmPasswordReset(auth, actionCode, newPassword)
+                .then(() => {
+                    setLoading(false);
+                    showSuccess("Password has been reset successfully! You can now log into BetterAlt.");
+                    document.getElementById('reset-form').style.display = 'none';
+                })
+                .catch((error) => {
+                    setLoading(false);
+                    showError(getErrorMessage(error.code));
+                });
+        });
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                btnText.style.display = 'none';
+                loader.style.display = 'inline-block';
+                submitBtn.disabled = true;
+            } else {
+                btnText.style.display = 'inline-block';
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        }
+
+        function showError(msg) {
+            messageEl.className = 'error';
+            messageEl.innerText = msg;
+        }
+
+        function showSuccess(msg) {
+            messageEl.className = 'success';
+            messageEl.innerText = msg;
+        }
+
+        function getErrorMessage(code) {
+            switch(code) {
+                case 'auth/expired-action-code':
+                    return 'This reset link has expired. Please request a new one.';
+                case 'auth/invalid-action-code':
+                    return 'This reset link is invalid or has already been used.';
+                case 'auth/weak-password':
+                    return 'The password is too weak. Please use a stronger password.';
+                default:
+                    return 'An error occurred while resetting the password. Please try again.';
+            }
+        }
+    </script>
+</body>
+</html>

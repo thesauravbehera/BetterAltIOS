@@ -29,7 +29,7 @@ class NotificationsScreen extends StatelessWidget {
                 .collection('users')
                 .doc(user.uid)
                 .collection('notifications')
-                .orderBy('timestamp', descending: true)
+                .orderBy('createdAt', descending: true)
                 .limit(50)
                 .snapshots(),
             builder: (context, snapshot) {
@@ -61,7 +61,7 @@ class NotificationsScreen extends StatelessWidget {
                   final data = docs[index].data() as Map<String, dynamic>;
                   final title = data['title'] ?? 'Notification';
                   final body = data['body'] ?? '';
-                  final ts = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+                  final ts = (data['createdAt'] as Timestamp?)?.toDate() ?? (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
                   
                   return FadeInUp(
                     delay: Duration(milliseconds: 50 * index),

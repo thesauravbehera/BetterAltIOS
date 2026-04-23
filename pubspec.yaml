@@ -24,8 +24,6 @@ dependencies:
   # Health data (HealthKit on iOS, Health Connect on Android)
   health: ^13.3.1
 
-  # HTTP requests
-  dio: ^5.9.2
 
   # State management
   provider: ^6.1.5
@@ -35,11 +33,11 @@ dependencies:
   percent_indicator: ^4.2.3
   shimmer: ^3.0.0
   intl: ^0.20.2
-  google_sign_in: ^6.1.4
+
   flutter_heatmap_calendar: ^1.0.5
   image_picker: ^1.2.1
   firebase_storage: ^13.2.0
-  sign_in_with_apple: ^7.0.1
+
   in_app_review: ^2.0.11
   table_calendar: ^3.2.0
   google_mlkit_image_labeling: ^0.14.2
@@ -49,6 +47,9 @@ dependencies:
   webview_flutter: ^4.13.1
   url_launcher: ^6.3.2
   google_mlkit_text_recognition: ^0.15.1
+  permission_handler: ^12.0.1
+  firebase_app_check: ^0.4.3
+  firebase_analytics: ^12.3.0
 
 dependency_overrides:
   intl: ^0.20.2

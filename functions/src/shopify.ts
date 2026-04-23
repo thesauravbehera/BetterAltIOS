@@ -140,13 +140,20 @@ async function fetchOrdersByEmail(config: ShopifyConfig, email: string): Promise
 
 async function fetchOrdersByPhone(config: ShopifyConfig, phone: string): Promise<OrderNode[]> {
   const normalizedPhone = phone.replace(/\D/g, '');
-  if (!normalizedPhone) {
+  if (!normalizedPhone || normalizedPhone.length < 10) {
+    console.log(`[Shopify] Phone too short after normalization: "${normalizedPhone}"`);
     return [];
   }
 
+  const last10 = normalizedPhone.slice(-10);
+  const withCountryCode = `+91${last10}`;
+  const formattedWithSpaces = `+91 ${last10.slice(0, 5)} ${last10.slice(5)}`;
+
+  console.log(`[Shopify] Searching customer by phone. Raw="${phone}", last10="${last10}", formatted="${formattedWithSpaces}"`);
+
   const customersQuery = `
     query GetCustomerByPhone($query: String!) {
-      customers(first: 1, query: $query) {
+      customers(first: 5, query: $query) {
         edges {
           node {
             id
@@ -156,13 +163,35 @@ async function fetchOrdersByPhone(config: ShopifyConfig, phone: string): Promise
     }
   `;
 
-  const customerData = await shopifyGraphQL<CustomersQueryResult>(config, customersQuery, {
-    query: `phone:*${normalizedPhone}*`,
-  });
+  // Shopify does NOT support OR in customer search — try each format separately
+  const phoneFormats = [
+    `phone:${formattedWithSpaces}`,
+    `phone:${withCountryCode}`,
+    `phone:${last10}`,
+  ];
 
-  const customer = customerData.customers.edges[0]?.node;
+  let customer: CustomerNode | null = null;
+
+  for (const searchQuery of phoneFormats) {
+    console.log(`[Shopify] Trying customer search: "${searchQuery}"`);
+    try {
+      const customerData = await shopifyGraphQL<CustomersQueryResult>(config, customersQuery, {
+        query: searchQuery,
+      });
+      if (customerData.customers.edges.length > 0) {
+        customer = customerData.customers.edges[0].node;
+        console.log(`[Shopify] Found customer via "${searchQuery}": ${customer.id}`);
+        break;
+      }
+    } catch (err) {
+      console.log(`[Shopify] Search "${searchQuery}" failed: ${err}`);
+    }
+  }
+
+  // If customer search failed, try searching orders directly by phone
   if (!customer) {
-    return [];
+    console.log(`[Shopify] No customer found. Trying direct order search by phone...`);
+    return await fetchOrdersDirectlyByPhone(config, last10, formattedWithSpaces);
   }
 
   const numericId = customer.id.replace(/\D/g, '');
@@ -205,6 +234,70 @@ async function fetchOrdersByPhone(config: ShopifyConfig, phone: string): Promise
     cursor = resultData.orders.pageInfo.hasNextPage ? resultData.orders.pageInfo.endCursor : null;
   } while (cursor);
 
+  console.log(`[Shopify] Found ${orders.length} orders for customer ${numericId}`);
+  return orders;
+}
+
+/**
+ * Fallback: Search orders directly by phone number if customer lookup fails.
+ * Shopify orders support phone-based search queries.
+ */
+async function fetchOrdersDirectlyByPhone(config: ShopifyConfig, last10: string, formattedPhone: string): Promise<OrderNode[]> {
+  const ordersQuery = `
+    query GetOrdersByPhone($query: String!, $cursor: String) {
+      orders(first: 50, query: $query, after: $cursor) {
+        edges {
+          node {
+            id
+            lineItems(first: 100) {
+              edges {
+                node {
+                  title
+                }
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  `;
+
+  const orders: OrderNode[] = [];
+
+  // Try multiple phone formats for order search
+  const searchQueries = [last10, formattedPhone, `+91${last10}`];
+
+  for (const phoneQuery of searchQueries) {
+    console.log(`[Shopify] Direct order search with phone: "${phoneQuery}"`);
+    try {
+      let cursor: string | null = null;
+      do {
+        const resultData: OrdersQueryResult = await shopifyGraphQL<OrdersQueryResult>(config, ordersQuery, {
+          query: phoneQuery,
+          cursor,
+        });
+
+        for (const edge of resultData.orders.edges) {
+          orders.push(edge.node);
+        }
+
+        cursor = resultData.orders.pageInfo.hasNextPage ? resultData.orders.pageInfo.endCursor : null;
+      } while (cursor);
+
+      if (orders.length > 0) {
+        console.log(`[Shopify] Found ${orders.length} orders via direct phone search: "${phoneQuery}"`);
+        return orders;
+      }
+    } catch (err) {
+      console.log(`[Shopify] Direct order search failed for "${phoneQuery}": ${err}`);
+    }
+  }
+
+  console.log(`[Shopify] No orders found for any phone format`);
   return orders;
 }
 
@@ -216,25 +309,37 @@ export async function hasPurchasedFatBurner(
   email?: string,
   phone?: string
 ): Promise<boolean> {
+  console.log(`[Shopify] hasPurchasedFatBurner called with email="${email}", phone="${phone}"`);
+
   if (!email && !phone) {
+    console.log(`[Shopify] No email or phone provided, returning false`);
     return false;
   }
 
   let orders: OrderNode[] = [];
 
   if (email) {
+    console.log(`[Shopify] Searching by email: "${email}"`);
     orders = await fetchOrdersByEmail(config, email);
+    console.log(`[Shopify] Email search returned ${orders.length} orders`);
   }
 
   if (orders.length === 0 && phone) {
+    console.log(`[Shopify] No orders from email, searching by phone: "${phone}"`);
     orders = await fetchOrdersByPhone(config, phone);
+    console.log(`[Shopify] Phone search returned ${orders.length} orders`);
   }
 
   for (const order of orders) {
     if (hasFatBurnerInOrder(order)) {
+      console.log(`[Shopify] ✅ FOUND Fat Burner purchase in order ${order.id}`);
       return true;
     }
+    // Log what line items we actually found
+    const titles = order.lineItems.edges.map(e => e.node.title);
+    console.log(`[Shopify] Order ${order.id} line items: ${JSON.stringify(titles)}`);
   }
 
+  console.log(`[Shopify] ❌ No Fat Burner purchase found`);
   return false;
 }

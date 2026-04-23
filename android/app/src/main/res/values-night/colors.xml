@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BetterAlt dark mode splash background (matches AppColors.canvasDark) -->
+    <color name="splash_bg">#0F1F14</color>
+</resources>

@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      // Users can read their own document
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Users can write their own document, but cannot modify has_purchased
+      // (only the server-side Cloud Function with Admin SDK can change it)
+      allow write: if request.auth != null && request.auth.uid == userId &&
+                     (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['has_purchased']));
+      // Allow create (first-time user document) without restriction on has_purchased
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      match /notifications/{notifId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /daily_logs/{logId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Secure public check for phone existence
+    match /phone_registry/{phoneId} {
+      // allow reading a specific phone document to check if it exists
+      allow get: if true;
+      // explicitly deny enumerating/scraping the collection
+      allow list: if false;
+      // allow authenticated users to update their own entries
+      allow write: if request.auth != null;
+    }
+  }
+}

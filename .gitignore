@@ -28,7 +28,11 @@ migrate_working_dir/
 
 # Android
 /android/.gradle/
+/android/build/
 /android/local.properties
+/android/key.properties
+*.jks
+*.keystore
 /android/app/debug
 /android/app/profile
 /android/app/release
@@ -49,6 +53,11 @@ firebase-debug.*.log
 functions/.env
 functions/node_modules/
 functions/lib/
+
+# Custom Scripts
+get_shopify_token.dart
+*.env
+.env
 
 # Optional
 *.lock

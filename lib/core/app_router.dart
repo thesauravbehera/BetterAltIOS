@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fat_burner/screens/login_screen.dart';
-import 'package:fat_burner/screens/sign_up_screen.dart';
 import 'package:fat_burner/screens/main_screen.dart';
 import 'package:fat_burner/screens/purchase_gate_screen.dart';
+import 'package:fat_burner/screens/sign_up_screen.dart';
 import 'package:fat_burner/screens/verification_gate_screen.dart';
 import 'package:fat_burner/screens/onboarding_screen.dart';
 import 'package:fat_burner/services/auth_service.dart';
@@ -12,10 +12,10 @@ import 'package:fat_burner/services/auth_service.dart';
 /// Add new routes here to keep navigation scalable.
 class AppRouter {
   static const String login = '/login';
+  static const String signup = '/signup';
   static const String dashboard = '/dashboard';
   static const String verify = '/verify';
   static const String paywall = '/paywall';
-  static const String signup = '/signup';
   static const String onboarding = '/onboarding';
 
   static final GoRouter router = GoRouter(
@@ -26,11 +26,13 @@ class AppRouter {
       final isLoggedIn = AuthService.instance.isLoggedIn;
       final isAuthRoute = state.matchedLocation == login || state.matchedLocation == signup;
 
-      // So if they are logged in, and try to visit an auth route (login/signup), we force them to the verifier first.
+      // If logged in and trying to visit login/signup, redirect to verification gate
       if (isLoggedIn && isAuthRoute) {
         return verify;
       }
       
+      // If not logged in and trying to access protected routes, redirect to login
+      // Allow /onboarding since user might be authenticated but not onboarded yet
       if (!isLoggedIn && !isAuthRoute) {
         return login;
       }
@@ -45,10 +47,7 @@ class AppRouter {
       GoRoute(
         path: signup,
         name: 'signup',
-        builder: (context, state) {
-          final extras = state.extra as Map<String, dynamic>? ?? {};
-          return SignUpScreen(onboardingData: extras);
-        },
+        builder: (context, state) => const SignUpScreen(),
       ),
       GoRoute(
         path: verify,

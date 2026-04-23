@@ -36,7 +36,7 @@ class _StepsScreenState extends State<StepsScreen> {
     }
 
     try {
-      final stepsList = await HealthService.instance.fetch7DaysSteps();
+      final stepsList = await HealthService.instance.fetch7DaysStepsWithFallback();
       int total = 0;
       List<String> daysList = [];
       final now = DateTime.now();

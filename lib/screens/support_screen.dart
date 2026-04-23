@@ -52,7 +52,7 @@ class SupportScreen extends StatelessWidget {
                     children: [
                       Text("Email Us", style: AppTypography.label(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
                       const SizedBox(height: 4),
-                      Text("support@betteralt.com", style: AppTypography.h3(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+                      Text("help@thebetteralt.com", style: AppTypography.h3(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
                     ],
                   )
                 ],

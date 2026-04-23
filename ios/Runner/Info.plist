@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Fat Burner</string>
+	<string>BetterAlt</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -60,9 +60,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Fat Burner syncs your steps, calories, and weight with Apple Health to track your fitness progress.</string>
+	<string>BetterAlt syncs your steps, calories, and weight with Apple Health to track your fitness progress.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Fat Burner syncs your steps, calories, and weight with Apple Health to track your fitness progress.</string>
+	<string>BetterAlt syncs your steps, calories, and weight with Apple Health to track your fitness progress.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

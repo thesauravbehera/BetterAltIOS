@@ -36,7 +36,7 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
     }
 
     try {
-      final calList = await HealthService.instance.fetch7DaysCalories();
+      final calList = await HealthService.instance.fetch7DaysCaloriesWithFallback();
       int total = 0;
       List<String> daysList = [];
       final now = DateTime.now();

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -31,6 +33,12 @@ void main() async {
   /// ✅ FIXED: Proper Firebase initialization (NO silent fail)
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  /// ✅ Firebase App Check: Debug provider for testing, Play Integrity for production
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+    appleProvider: AppleProvider.deviceCheck,
   );
 
   /// 🔥 Register background handler

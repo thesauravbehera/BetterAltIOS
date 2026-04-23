@@ -23,7 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _streakCount = 0;
   int _totalUses = 0;
   int _activeDays = 0;
-  String? _photoBase64;
+  String? _photoUrl;
 
   @override
   void initState() {
@@ -33,6 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _userName = '';
+  String _userEmail = '';
 
   Future<void> _fetchUserData() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -40,10 +41,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final doc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
       if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
         if (mounted) {
           setState(() {
-            _photoBase64 = doc.data()!['profile_photo_base64'];
-            _userName = doc.data()!['name'] ?? '';
+            if (data['profile_photo_url'] != null && data['profile_photo_url'].toString().isNotEmpty) {
+              _photoUrl = data['profile_photo_url'];
+            } else if (data['profile_photo_base64'] != null && data['profile_photo_base64'].toString().isNotEmpty) {
+              _photoUrl = 'base64:${data['profile_photo_base64']}';
+            }
+            _userName = data['name'] ?? '';
+            _userEmail = data['email'] ?? '';
           });
         }
       }
@@ -100,8 +107,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
       
-      // Calculate true unbroken streak
-      // If missToday is true, check if yesterday was logged to not break current streak entirely
+      // Snapchat-style: show streak until the NEXT day after missing
+      // If today missed but yesterday logged → still show streak (grace period, day not over)
+      // Next day: yesterday is empty → streak = 0
+      if (missedToday) {
+        final yesterdayStr = now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
+        final bool yesterdayMissed = !snapshot.docs.any((d) {
+          final bool am = d.data()["capsuleDose1"] ?? false;
+          final bool pm = d.data()["capsuleDose2"] ?? false;
+          return d.id == yesterdayStr && (am || pm);
+        });
+        if (yesterdayMissed) {
+          currentStreak = 0; // Both today and yesterday missed → streak broken
+        }
+        // Otherwise keep currentStreak (grace period: today not done yet)
+      }
       
       if (mounted) {
         setState(() {
@@ -117,9 +137,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final user = FirebaseAuth.instance.currentUser;
-    final initials = (user?.displayName?.isNotEmpty == true)
-        ? user!.displayName!.substring(0, 1).toUpperCase()
-        : (user?.email?.substring(0, 1).toUpperCase() ?? 'U');
+    final String displayName = _userName.isNotEmpty ? _userName : (user?.displayName ?? '');
+    final String initials = displayName.isNotEmpty
+        ? displayName.substring(0, 1).toUpperCase()
+        : 'U';
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.canvasDark : AppColors.canvasLight,
@@ -163,17 +184,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             offset: const Offset(0, 6),
                           ),
                         ],
-                        image: _photoBase64 != null ? DecorationImage(
-                          image: MemoryImage(base64Decode(_photoBase64!)),
-                          fit: BoxFit.cover,
-                        ) : null,
+                        image: (() {
+                          if (_photoUrl == null || _photoUrl!.isEmpty) return null;
+                          try {
+                            if (_photoUrl!.startsWith('base64:')) {
+                              return DecorationImage(
+                                image: MemoryImage(base64Decode(_photoUrl!.substring(7))),
+                                fit: BoxFit.cover,
+                              );
+                            }
+                            return DecorationImage(
+                              image: NetworkImage(_photoUrl!),
+                              fit: BoxFit.cover,
+                            );
+                          } catch (_) {
+                            return null;
+                          }
+                        })(),
                       ),
-                      child: _photoBase64 == null ? Center(
-                        child: Text(
-                          initials,
-                          style: AppTypography.h2(color: Colors.white).copyWith(fontSize: 32),
-                        ),
-                      ) : null,
+                      child: (() {
+                        bool showInitials = _photoUrl == null || _photoUrl!.isEmpty;
+                        return showInitials ? Center(
+                          child: Text(
+                            initials,
+                            style: AppTypography.h2(color: Colors.white).copyWith(fontSize: 32),
+                          ),
+                        ) : null;
+                      })(),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -187,10 +224,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: AppTypography.h3(color: isDark ? AppColors.textOnDark : AppColors.textPrimary).copyWith(fontSize: 22),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            user?.email ?? '',
-                            style: AppTypography.body(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary),
-                          ),
+                          if (_userEmail.isNotEmpty)
+                            Text(
+                              _userEmail,
+                              style: AppTypography.body(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary).copyWith(fontSize: 13),
+                            ),
                         ],
                       ),
                     ),
@@ -234,7 +272,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _settingsRow(Icons.person_outline_rounded, "Edit Profile", onTap: () async {
                     final shouldRefresh = await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
                     if (shouldRefresh == true) {
-                      setState(() {});
+                      await _fetchUserData();
+                      await _calculateStreak();
                     }
                   }, isDark: isDark),
                   _divider(isDark),

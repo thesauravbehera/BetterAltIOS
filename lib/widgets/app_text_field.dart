@@ -15,6 +15,7 @@ class AppTextField extends StatefulWidget {
   final IconData? prefixIcon;
   final Widget? suffixIcon;
   final bool isPremiumWhite;
+  final int? maxLength;
 
   const AppTextField({
     super.key,
@@ -30,6 +31,7 @@ class AppTextField extends StatefulWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.isPremiumWhite = false,
+    this.maxLength,
   });
 
   @override
@@ -113,6 +115,8 @@ class _AppTextFieldState extends State<AppTextField> {
             inputFormatters: widget.inputFormatters,
             validator: widget.validator,
             onChanged: widget.onChanged,
+            maxLength: widget.maxLength,
+            buildCounter: (context, {required currentLength, required isFocused, required maxLength}) => null,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
             decoration: InputDecoration(
               hintText: widget.hint,

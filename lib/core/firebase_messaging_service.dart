@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,6 +36,14 @@ class FirebaseMessagingService {
     // Get FCM token (e.g. to store on your backend)
     await _updateFcmToken();
     _messaging.onTokenRefresh.listen((_) => _updateFcmToken());
+
+    // Also re-save token whenever the user logs in (fixes cold-start issue
+    // where the user isn't authenticated yet when the app first launches)
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        _updateFcmToken();
+      }
+    });
   }
 
   Future<void> _requestPermission() async {
@@ -74,16 +84,79 @@ class FirebaseMessagingService {
     if (token != null) {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        debugPrint('FCM: Saving token for user ${user.uid}');
         try {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .set({
+          final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+          await userRef.set({
             'fcmToken': token,
             'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
-        } catch (_) {}
+
+          // Write a welcome notification if this is the first time
+          await _writeWelcomeNotificationIfNeeded(user.uid);
+        } catch (e) {
+          debugPrint('FCM: Failed to save token: $e');
+        }
       }
+    }
+  }
+
+  /// Writes a one-time welcome notification to Firestore so the
+  /// Notifications screen is never empty on first login.
+  /// Skips for returning users (who already have daily_logs).
+  Future<void> _writeWelcomeNotificationIfNeeded(String uid) async {
+    try {
+      final notifCollection = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('notifications');
+
+      // Always write a fresh welcome notification on every login
+      // (returning users get "Welcome Back", new users get "Welcome to BetterAlt")
+      // We check for 'onboardingCompleted' = true in the main users doc
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      final isReturningUser = userDoc.exists && 
+          userDoc.data()?['onboardingCompleted'] == true &&
+          userDoc.data()?['created_at'] != null;
+
+      if (isReturningUser) {
+        debugPrint('FCM: Returning user detected, sending welcome back notification');
+        const title = 'Welcome Back! 💪';
+        const body = 'Great to see you again! Continue your fat-burning journey right where you left off.';
+        
+        await notifCollection.add({
+          'title': title,
+          'body': body,
+          'createdAt': FieldValue.serverTimestamp(),
+          'read': false,
+          'type': 'welcome',
+        });
+
+        // Trigger local push notification banner
+        NotificationService.instance.showForegroundNotification(uid.hashCode, title, body);
+        return;
+      }
+
+      const title = 'Welcome to BetterAlt! 🎉';
+      const body = 'Your Fat Burner journey starts now. Take your first capsule to begin your streak!';
+
+      await notifCollection.add({
+        'title': title,
+        'body': body,
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+        'type': 'welcome',
+      });
+      
+      // Trigger local push notification banner
+      NotificationService.instance.showForegroundNotification(uid.hashCode, title, body);
+      debugPrint('FCM: Welcome notification written and pushed');
+    } catch (e) {
+      debugPrint('FCM: Failed to write welcome notification: $e');
     }
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_typography.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 class PlantProteinScreen extends StatefulWidget {
   const PlantProteinScreen({super.key});
@@ -17,6 +18,10 @@ class _PlantProteinScreenState extends State<PlantProteinScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Log analytics event
+    _logVisit();
+
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.transparent)
@@ -27,7 +32,18 @@ class _PlantProteinScreenState extends State<PlantProteinScreen> {
           },
         ),
       )
-      ..loadRequest(Uri.parse('https://betteralt.in/products/plant-protein'));
+      ..loadRequest(Uri.parse('https://betteralt.in/products/plant-protein?utm_source=betteralt_app&utm_medium=android_app&utm_campaign=plant_protein_tab'));
+  }
+
+  Future<void> _logVisit() async {
+    try {
+      await FirebaseAnalytics.instance.logEvent(
+        name: 'visited_plant_protein',
+        parameters: {'source': 'bottom_nav_tab'},
+      );
+    } catch (e) {
+      debugPrint('Analytics error: $e');
+    }
   }
 
   @override
@@ -39,29 +55,6 @@ class _PlantProteinScreenState extends State<PlantProteinScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Plant Protein Top Banner Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-                border: Border(bottom: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight)),
-              ),
-              child: Row(
-                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                 children: [
-                   Text(
-                     "Plant Protein",
-                     style: AppTypography.h2(color: isDark ? Colors.white : Colors.black87).copyWith(fontWeight: FontWeight.w800),
-                   ),
-                   Image.asset(
-                     'images/Betteralt_main_logo.jpeg',
-                     height: 65,
-                     fit: BoxFit.contain,
-                   ),
-                 ],
-              ),
-            ),
             
             // WebView filling the rest of the screen
             Expanded(

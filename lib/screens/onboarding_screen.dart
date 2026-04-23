@@ -23,7 +23,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   
   // Page 1 Inputs
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   int _selectedAge = 25; // Default age for scroller
 
   // Page 3 Selection
@@ -33,12 +33,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _nextPage() {
     // Validation
     if (_currentPage == 0) {
-      if (_nameController.text.trim().isEmpty || _phoneController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill out all fields')));
-        return;
-      }
-      if (_phoneController.text.trim().length != 10) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter exactly 10 digits for your phone number')));
+      if (_nameController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your name')));
         return;
       }
     }
@@ -55,16 +51,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
 
-    setState(() => _isSaving = true);
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'age': _selectedAge,
-        'dose_preference': _selectedTiming,
-        'onboardingCompleted': true,
-      }, SetOptions(merge: true));
+      setState(() => _isSaving = true);
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final realEmail = _emailController.text.trim();
+
+        // 1. Save to Firestore
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'name': _nameController.text.trim(),
+          'email': realEmail,
+          'age': _selectedAge,
+          'dose_preference': _selectedTiming,
+          'onboardingCompleted': true,
+        }, SetOptions(merge: true));
+
+        // 2. Link Real Email to Firebase Auth (Crucial for Forgot Password processing!)
+        // If they signed up with phone, their current auth email is phone@betteralt.app
+        if (realEmail.isNotEmpty && user.email != null && user.email!.endsWith('@betteralt.app')) {
+          try {
+            await user.verifyBeforeUpdateEmail(realEmail);
+            debugPrint('FatBurner DEBUG: Verification email sent to $realEmail for account linking.');
+          } catch (e) {
+            debugPrint('FatBurner DEBUG: Failed to update auth email during onboarding: $e');
+          }
+        }
+
 
       // Subscribe to FCM topic for selected dose timing
       final topicName = 'dose_${_selectedTiming.replaceAll('-', '_')}';
@@ -74,17 +85,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         debugPrint('FCM Subscribe Error: $e');
       }
 
-      if (mounted) context.go('/dashboard');
-    } else {
-      // User hasn't signed up yet, pass data to SignUpScreen
-      if (mounted) {
-        context.push('/signup', extra: {
-          'name': _nameController.text.trim(),
-          'phone': _phoneController.text.trim(),
-          'age': _selectedAge,
-          'dose_preference': _selectedTiming,
-        });
-      }
+      if (mounted) context.go('/verify');
     }
     setState(() => _isSaving = false);
   }
@@ -190,11 +191,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             const SizedBox(height: 20),
             AppTextField(
-              label: "Phone Number",
-              hint: "Enter your 10-digit number",
-              controller: _phoneController,
-              prefixIcon: Icons.phone_rounded,
-              keyboardType: TextInputType.phone,
+              label: "Email",
+              hint: "Enter your email address",
+              controller: _emailController,
+              prefixIcon: Icons.alternate_email_rounded,
+              keyboardType: TextInputType.emailAddress,
               isPremiumWhite: true,
             ),
             const SizedBox(height: 20),
@@ -213,22 +214,98 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   const SizedBox(width: 12),
                   Text("Age", style: AppTypography.body(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
                   const Spacer(),
-                  DropdownButton<int>(
-                    value: _selectedAge,
-                    underline: const SizedBox(),
-                    dropdownColor: isDark ? AppColors.surfaceDark : Colors.white,
-                    icon: Icon(Icons.keyboard_arrow_down, color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary),
-                    items: List.generate(82, (index) => index + 18).map((int value) {
-                      return DropdownMenuItem<int>(
-                        value: value,
-                        child: Text("$value", style: AppTypography.body(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+                  GestureDetector(
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      showModalBottomSheet(
+                        context: context,
+                        backgroundColor: isDark ? AppColors.surfaceElevatedDk : Colors.white,
+                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                        builder: (BuildContext builder) {
+                          return Container(
+                            height: 250,
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+                                    Text("Select Age", style: AppTypography.h3(color: isDark ? Colors.white : Colors.black)),
+                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Done")),
+                                  ],
+                                ),
+                                Expanded(
+                                  child: SafeArea(
+                                    top: false,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        // A simple visual indicator for the selected row
+                                        Container(
+                                          height: 48,
+                                          margin: const EdgeInsets.symmetric(horizontal: 16),
+                                          decoration: BoxDecoration(
+                                            color: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        ListWheelScrollView.useDelegate(
+                                          itemExtent: 48,
+                                          perspective: 0.005,
+                                          diameterRatio: 1.5,
+                                          physics: const FixedExtentScrollPhysics(),
+                                          controller: FixedExtentScrollController(initialItem: _selectedAge - 18),
+                                          onSelectedItemChanged: (index) {
+                                            if (mounted) {
+                                              setState(() => _selectedAge = index + 18);
+                                            }
+                                          },
+                                          childDelegate: ListWheelChildBuilderDelegate(
+                                            childCount: 82, // 18 to 99
+                                            builder: (context, index) {
+                                              final age = index + 18;
+                                              final isSelected = age == _selectedAge;
+                                              return Center(
+                                                child: AnimatedDefaultTextStyle(
+                                                  duration: const Duration(milliseconds: 200),
+                                                  style: isSelected 
+                                                      ? AppTypography.h2(color: AppColors.accent)
+                                                      : AppTypography.h3(color: isDark ? Colors.white54 : Colors.black54),
+                                                  child: Text("$age"),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      if (newValue != null) {
-                        setState(() => _selectedAge = newValue);
-                      }
                     },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "$_selectedAge",
+                            style: AppTypography.body(color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(Icons.unfold_more_rounded, size: 20, color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -247,8 +324,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("The 90-Day Challenge", style: AppTypography.h1(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            Text("Consistency is Key", style: AppTypography.h2(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
             const SizedBox(height: 10),
-            Text("Consistency is key. Here is how BetterAlt Fat Burner helps you over 90 days.", style: AppTypography.body(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
+            Text("Here is how BetterAlt Fat Burner helps you over 90 days.", style: AppTypography.body(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
             const SizedBox(height: 30),
             
             Container(
@@ -275,12 +354,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    "We are absolutely committed to your transformation journey. Our 90-Day Protocol is simple:\n\n"
-                    "1. Take Both Capsules Daily (Dose 1 and Dose 2)\n"
-                    "2. Maintain Your Recommended Metrics\n"
-                    "3. Complete the Full 90 Days\n\n"
-                    "If you follow the program consistently for all 90 days without missing a dose and still don't see any positive changes in your body composition, we will initiate a FULL REFUND. No questions asked. We actively push you to succeed!",
-                    style: AppTypography.body(color: isDark ? AppColors.textOnDark : AppColors.textPrimary).copyWith(fontSize: 14, height: 1.5),
+                    "We've got your back, for real. Here's the deal with our 90-Day Protocol:\n\n"
+                    "1. Pop both your capsules every single day\n"
+                    "2. Stick it out for the full 90 days — no breaks!\n\n"
+                    "If you follow through honestly for all 90 days and still don't notice any positive changes in your body, we'll give you a FULL REFUND. Zero hassle, zero drama. We're here to help you win!",
+                    style: AppTypography.body(color: isDark ? AppColors.textOnDark : AppColors.textPrimary).copyWith(fontSize: 14, height: 1.6),
                   ),
                 ],
               ),
@@ -298,9 +376,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Schedule Your Dose", style: AppTypography.h1(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+            Text("Schedule Your Capsules", style: AppTypography.h1(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
             const SizedBox(height: 10),
-            Text("When is your preferred time to take the BetterAlt capsule?", style: AppTypography.body(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
+            Text("When is your preferred time to take your BetterAlt capsules?", style: AppTypography.body(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
             const SizedBox(height: 30),
             
             _buildTimingRadio(isDark, "8:00 AM - 12:00 PM", "8-12"),
@@ -310,9 +388,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
                   "🔥 Highly Recommended for Best Results!", 
-                  style: GoogleFonts.caveat(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    fontStyle: FontStyle.italic,
                     color: AppColors.accent,
                   ),
                 ),
