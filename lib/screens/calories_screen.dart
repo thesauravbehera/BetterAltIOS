@@ -22,6 +22,9 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
   int avgCalories = 0;
   bool isLoading = true;
 
+  /// Goal for active calories burned (kcal)
+  static const int goalCalories = 500;
+
   @override
   void initState() {
     super.initState();
@@ -68,10 +71,15 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     
-    double maxCal = 3000;
+    // Dynamic max: use the goal OR highest day value (whichever is bigger) + small buffer
+    int highestDay = 0;
     for (int c in weeklyCalories) {
-      if (c > maxCal) maxCal = c.toDouble() + 500;
+      if (c > highestDay) highestDay = c;
     }
+    // maxCal is at least the goal + 20% buffer, or the highest day + 100
+    double maxCal = (highestDay > goalCalories)  
+        ? highestDay.toDouble() + 100
+        : goalCalories * 1.2;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.canvasDark : AppColors.canvasLight,
@@ -90,7 +98,7 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
                       FadeInDown(
                         duration: const Duration(milliseconds: 500),
                         child: Text(
-                          "Calorie Burn",
+                          "Active Calorie Burn",
                           style: AppTypography.h1(color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
                         ),
                       ),
@@ -140,7 +148,7 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(6),
                                       child: LinearProgressIndicator(
-                                        value: (todayCalories / 500).clamp(0.0, 1.0),
+                                        value: (todayCalories / goalCalories).clamp(0.0, 1.0),
                                         backgroundColor: Colors.white24,
                                         valueColor: const AlwaysStoppedAnimation(Colors.white),
                                         minHeight: 8,
@@ -148,7 +156,7 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      "${((todayCalories / 500) * 100).toStringAsFixed(0)}% of 500 goal",
+                                      "${((todayCalories / goalCalories) * 100).toStringAsFixed(0)}% of $goalCalories kcal goal",
                                       style: AppTypography.caption(color: Colors.white70),
                                     ),
                                   ],
@@ -190,7 +198,7 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
 
                       const SizedBox(height: 20),
 
-                      /// Chart
+                      /// Chart — bars scale against the goal value (500 kcal)
                       Expanded(
                         child: FadeInUp(
                           delay: const Duration(milliseconds: 400),
@@ -208,7 +216,7 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
                                 gridData: FlGridData(
                                   show: true,
                                   drawVerticalLine: false,
-                                  horizontalInterval: maxCal / 3 == 0 ? 1 : maxCal / 3,
+                                  horizontalInterval: maxCal / 4 == 0 ? 1 : maxCal / 4,
                                   getDrawingHorizontalLine: (_) => FlLine(
                                     color: isDark ? AppColors.borderDark : AppColors.borderLight,
                                     strokeWidth: 1,
@@ -236,6 +244,26 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
                                     ),
                                   ),
                                 ),
+                                // Goal line at 500 kcal
+                                extraLinesData: ExtraLinesData(
+                                  horizontalLines: [
+                                    HorizontalLine(
+                                      y: goalCalories.toDouble(),
+                                      color: isDark ? Colors.white38 : Colors.black26,
+                                      strokeWidth: 1.5,
+                                      dashArray: [8, 4],
+                                      label: HorizontalLineLabel(
+                                        show: true,
+                                        alignment: Alignment.topRight,
+                                        padding: const EdgeInsets.only(right: 4, bottom: 2),
+                                        style: AppTypography.caption(
+                                          color: isDark ? Colors.white54 : Colors.black45,
+                                        ).copyWith(fontSize: 10, fontWeight: FontWeight.w700),
+                                        labelResolver: (_) => '$goalCalories goal',
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 barGroups: [
                                   for (int i = 0; i < 7; i++)
                                     BarChartGroupData(
@@ -243,7 +271,9 @@ class _CaloriesScreenState extends State<CaloriesScreen> {
                                       barRods: [
                                         BarChartRodData(
                                           toY: weeklyCalories[i].toDouble(),
-                                          color: AppColors.warning,
+                                          color: weeklyCalories[i] >= goalCalories 
+                                              ? AppColors.success 
+                                              : AppColors.warning,
                                           width: 14,
                                           borderRadius: BorderRadius.circular(4),
                                           backDrawRodData: BackgroundBarChartRodData(

@@ -61,10 +61,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkHealthConnectPopup());
+    _loadCachedStreak(); // Load cached streak instantly (no delay)
     _loadTodayStatus();
     _loadHealthData();
     _triggerDemoNotification();
     _listenForUnreadNotifications();
+  }
+
+  /// Instantly loads the last-known streak from SharedPreferences to avoid
+  /// the 2-3 second delay while Firestore queries complete.
+  Future<void> _loadCachedStreak() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getInt('cached_streak_count') ?? 0;
+      if (cached > 0 && mounted) {
+        setState(() => _currentStreak = cached);
+      }
+    } catch (_) {}
   }
 
   Future<void> _triggerDemoNotification() async {
@@ -182,6 +195,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       // 2. Fetch data WITH Firestore manual fallback for display
       final data = await HealthService.instance.fetchBasicHealthDataWithFallback();
+
+      // 3. API data OVERRIDES manual/screenshot data when API has real values.
+      //    This ensures that after the user clicks "Enable" and grants Health Connect
+      //    permissions, the live API data replaces any previously uploaded screenshot data.
+      if (apiReturnedData) {
+        if (apiSteps > 0) data['steps'] = apiSteps;
+        if (apiCals > 0) data['calories'] = apiCals;
+        if (apiSleep > 0) data['sleep'] = apiSleep;
+        if (apiDist > 0) data['distance'] = apiDist;
+      }
       
       if (mounted) {
         setState(() {
@@ -225,14 +248,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    // ── Collect all state into temp variables, then batch into ONE setState ──
+    String newUserName = _userName;
+    bool newShowPurchaseBanner = _showPurchaseBanner;
+    String? newProfilePhotoUrl = _profilePhotoUrl;
+    bool newCapsuleAM = capsuleAM;
+    bool newCapsulePM = capsulePM;
+    Map<DateTime, int> newStreakData = streakData;
+    int newCurrentStreak = _currentStreak;
+
     // Check purchase status for banner
     try {
-      await user.reload(); // Force refresh the Auth payload just in case the phone number was linked externally in Firebase Authentication
+      await user.reload();
     } catch (e) {
       debugPrint("Could not reload user auth token: $e");
     }
     
-    // Grab the freshest user instance after reload
+    // Null-safety: user might have signed out during the async gap
+    if (!mounted) return;
     final refreshedUser = FirebaseAuth.instance.currentUser ?? user;
     
     final userDocRecord = await FirebaseFirestore.instance.collection("users").doc(refreshedUser.uid).get();
@@ -279,20 +312,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      if (mounted) {
-        setState(() {
-          _userName = userDocData?['name'] ?? '';
-          _showPurchaseBanner = !hasPurchased;
-          if (userDocData?['profile_photo_url'] != null && userDocData!['profile_photo_url'].toString().isNotEmpty) {
-            _profilePhotoUrl = userDocData['profile_photo_url'];
-          } else if (userDocData?['profile_photo_base64'] != null && userDocData!['profile_photo_base64'].toString().isNotEmpty) {
-            _profilePhotoUrl = 'base64:${userDocData['profile_photo_base64']}';
-          } else {
-            _profilePhotoUrl = null;
-          }
-        });
+      newUserName = userDocData?['name'] ?? '';
+      newShowPurchaseBanner = !hasPurchased;
+      if (userDocData?['profile_photo_url'] != null && userDocData!['profile_photo_url'].toString().isNotEmpty) {
+        newProfilePhotoUrl = userDocData['profile_photo_url'];
+      } else if (userDocData?['profile_photo_base64'] != null && userDocData!['profile_photo_base64'].toString().isNotEmpty) {
+        newProfilePhotoUrl = 'base64:${userDocData['profile_photo_base64']}';
+      } else {
+        newProfilePhotoUrl = null;
       }
     }
+
+    // Null-safety: check mounted after async gap
+    if (!mounted) return;
 
     final todayDoc = _getCurrentIstDateString();
     
@@ -305,12 +337,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final doc = await docRef.get();
     
     if (doc.exists) {
-      if (mounted) {
-        setState(() {
-          capsuleAM = doc.data()?["capsuleDose1"] ?? false;
-          capsulePM = doc.data()?["capsuleDose2"] ?? false;
-        });
-      }
+      newCapsuleAM = doc.data()?["capsuleDose1"] ?? false;
+      newCapsulePM = doc.data()?["capsuleDose2"] ?? false;
     } else {
       await docRef.set({
         "capsuleDose1": false,
@@ -320,6 +348,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         "lastUpdated": FieldValue.serverTimestamp(),
       });
     }
+
+    // Null-safety: check mounted after async gap
+    if (!mounted) return;
 
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -335,8 +366,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final date = DateTime.parse(d.id);
           final bool am = d.data()["capsuleDose1"] ?? false;
           final bool pm = d.data()["capsuleDose2"] ?? false;
+          // ignore: unused_local_variable
           final bool hasProof = d.data()["hasManualMetricsProof"] ?? false;
+          // ignore: unused_local_variable
           final int steps = d.data()["steps"] ?? 0;
+          // ignore: unused_local_variable
           final int calories = d.data()["calories"] ?? 0;
           
           if (am && pm) {
@@ -355,30 +389,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final yesterday = today.subtract(const Duration(days: 1));
 
       if (newStreak.containsKey(today)) {
-        // Today done — count backwards
         DateTime checkDate = today;
         while (newStreak.containsKey(checkDate)) {
           consecutiveCount++;
           checkDate = checkDate.subtract(const Duration(days: 1));
         }
       } else if (newStreak.containsKey(yesterday)) {
-        // Today not done yet but yesterday was — show yesterday's count (grace period)
         DateTime checkDate = yesterday;
         while (newStreak.containsKey(checkDate)) {
           consecutiveCount++;
           checkDate = checkDate.subtract(const Duration(days: 1));
         }
       }
-      // If neither today nor yesterday: streak = 0 (already default)
       
-      if (mounted) {
-        setState(() {
-          streakData = newStreak;
-          _currentStreak = consecutiveCount;
-        });
-        NotificationService.instance.checkAndShowMilestoneReminders(consecutiveCount);
-      }
+      newStreakData = newStreak;
+      newCurrentStreak = consecutiveCount;
+
+      // Cache streak in SharedPreferences for instant load next time
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('cached_streak_count', consecutiveCount);
+      } catch (_) {}
     } catch (_) {}
+
+    // ── SINGLE batched setState — eliminates flicker from multiple rebuilds ──
+    if (mounted) {
+      setState(() {
+        _userName = newUserName;
+        _showPurchaseBanner = newShowPurchaseBanner;
+        // Only update profile photo if it actually changed (prevents image flicker)
+        if (newProfilePhotoUrl != _profilePhotoUrl) {
+          _profilePhotoUrl = newProfilePhotoUrl;
+        }
+        capsuleAM = newCapsuleAM;
+        capsulePM = newCapsulePM;
+        streakData = newStreakData;
+        _currentStreak = newCurrentStreak;
+      });
+      NotificationService.instance.checkAndShowMilestoneReminders(newCurrentStreak);
+    }
   }
   Future<void> _updateStatus(String type, bool value) async {
     if (!value) return; 
@@ -1126,6 +1175,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
           await textRecognizer.close();
           debugPrint('FatBurner DEBUG: OCR final → Steps: $parsedSteps, Calories: $parsedCalories');
+
+          // Clean up temp image file after OCR processing to prevent disk leakage
+          try { await File(photo.path).delete(); } catch (_) {}
         } catch(e) {
           debugPrint("Failed to OCR metrics: $e");
         }
@@ -1360,7 +1412,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.edit_note_rounded, color: AppColors.accent, size: 28),
                   ),
                   const SizedBox(width: 12),
-                  Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: isDark ? Colors.white : Colors.black87)),
+                  Expanded(
+                    child: Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
                 ],
               ),
               content: Column(
@@ -1473,6 +1527,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final user = FirebaseAuth.instance.currentUser;
     final int steps = healthData?['steps'] ?? 0;
     final int calories = (healthData?['calories'] ?? 0.0).round();
+    final String caloriesDisplay = calories > 0 ? '$calories kcal' : '0 kcal';
     final double sleep = healthData?['sleep'] ?? 0.0;
     final double distance = healthData?['distance'] ?? 0.0;
     
@@ -1502,13 +1557,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               pinned: true,
               toolbarHeight: 60,
-              title: Container(
-                child: Image.asset(
-                  'images/Betteralt_main_logo.jpeg',
-                  height: 65, // Enlarged by a bit as requested
-                  fit: BoxFit.contain,
-                ),
-              ),
+              title: Image.asset(
+                    isDark ? 'images/White_Logo.png' : 'images/Betteralt_main_logo.jpeg',
+                    height: 65,
+                    fit: BoxFit.contain,
+                  ),
               centerTitle: false,
               actions: [
                 Container(
@@ -1739,7 +1792,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       children: [
                         Expanded(child: StatCard(title: "Steps", value: steps.toString(), subtitle: "Recommended Goal: 10k", icon: Icons.directions_walk_rounded, colorOverride: AppColors.accent, index: 1, actionText: (steps == 0) ? "Upload" : null, onTapAction: (steps == 0) ? () => _updateStatus('METRIC_STEPS', true) : null)),
                         const SizedBox(width: AppSpacing.lg),
-                        Expanded(child: StatCard(title: "Calories", value: calories.toString(), subtitle: "Recommended Goal: 500 kcal", icon: Icons.local_fire_department_rounded, colorOverride: AppColors.warning, index: 2, actionText: (calories == 0) ? "Upload" : null, onTapAction: (calories == 0) ? () => _updateStatus('METRIC_CALS', true) : null)),
+                        Expanded(child: StatCard(title: "Calories", value: caloriesDisplay, subtitle: "Recommended Goal: 500 kcal", icon: Icons.local_fire_department_rounded, colorOverride: AppColors.warning, index: 2, actionText: (calories == 0) ? "Upload" : null, onTapAction: (calories == 0) ? () => _updateStatus('METRIC_CALS', true) : null)),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -1888,18 +1941,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
                 "images/fat_burner.jpeg",
-                height: 50,
-                width: 50,
+                height: 44,
+                width: 44,
                 fit: BoxFit.cover,
                 errorBuilder: (ctx, err, stk) => Container(
-                  height: 50,
-                  width: 50,
+                  height: 44,
+                  width: 44,
                   color: isDark ? Colors.white12 : Colors.black12,
                   child: Icon(Icons.medication_liquid_rounded, color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1907,12 +1960,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 children: [
                   Text(
                     "Fat Burner Pro Capsules",
-                    style: AppTypography.h3(color: allTaken ? Colors.white : (isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.h3(color: allTaken ? Colors.white : (isDark ? AppColors.textOnDark : AppColors.textPrimary)).copyWith(fontSize: 15),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     allTaken ? "Taken today. Great job!" : "Don't forget your capsules today",
-                    style: AppTypography.body(color: allTaken ? Colors.white70 : (isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)).copyWith(fontSize: 13),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.body(color: allTaken ? Colors.white70 : (isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)).copyWith(fontSize: 12),
                   ),
                 ],
               ),
@@ -2216,8 +2273,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               gradient: LinearGradient(
                 colors: isDark
                     ? [
-                        const Color(0xFF0D1B0D).withOpacity(0.85),
-                        const Color(0xFF0A1A12).withOpacity(0.92),
+                        const Color(0xFF1A1A1A).withOpacity(0.85),
+                        const Color(0xFF141414).withOpacity(0.92),
                       ]
                     : [
                         const Color(0xFFFAF8F5).withOpacity(0.9),
@@ -2483,26 +2540,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           milestone['icon'] as String,
                                           style: TextStyle(fontSize: isNext ? 16 : 14),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          milestone['phase'] as String,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 1.0,
-                                            color: isCompleted
-                                                ? AppColors.accent.withOpacity(0.7)
-                                                : isNext
-                                                    ? AppColors.accent
-                                                    : isDark
-                                                        ? Colors.white.withOpacity(0.2)
-                                                        : Colors.black.withOpacity(0.2),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            milestone['phase'] as String,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 1.0,
+                                              color: isCompleted
+                                                  ? AppColors.accent.withOpacity(0.7)
+                                                  : isNext
+                                                      ? AppColors.accent
+                                                      : isDark
+                                                          ? Colors.white.withOpacity(0.2)
+                                                          : Colors.black.withOpacity(0.2),
+                                            ),
                                           ),
                                         ),
-                                        const Spacer(),
+                                        const SizedBox(width: 4),
                                         if (isCompleted)
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: AppColors.accent.withOpacity(0.12),
                                               borderRadius: BorderRadius.circular(8),
@@ -2519,7 +2580,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           ),
                                         if (isNext)
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
                                               gradient: LinearGradient(
                                                 colors: [AppColors.accent, AppColors.accentGlow],
@@ -2682,7 +2743,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ).copyWith(height: 1.5),
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
               children: [
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
@@ -2695,7 +2758,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   label: Text("Open $healthName", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   onPressed: () => HealthService.instance.openHealthSettings(),
                 ),
-                const SizedBox(width: 10),
                 TextButton(
                   onPressed: _loadHealthData,
                   child: Text("Refresh", style: AppTypography.caption(color: AppColors.info).copyWith(fontWeight: FontWeight.w600)),

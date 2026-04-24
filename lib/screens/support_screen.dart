@@ -47,14 +47,20 @@ class SupportScreen extends StatelessWidget {
                     child: const Icon(Icons.email_outlined, color: AppColors.accent),
                   ),
                   const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Email Us", style: AppTypography.label(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
-                      const SizedBox(height: 4),
-                      Text("help@thebetteralt.com", style: AppTypography.h3(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
-                    ],
-                  )
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Email Us", style: AppTypography.label(color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text("help@thebetteralt.com", style: AppTypography.h3(color: isDark ? AppColors.textOnDark : AppColors.textPrimary)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

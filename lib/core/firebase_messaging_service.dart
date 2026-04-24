@@ -111,9 +111,12 @@ class FirebaseMessagingService {
           .doc(uid)
           .collection('notifications');
 
-      // Always write a fresh welcome notification on every login
-      // (returning users get "Welcome Back", new users get "Welcome to BetterAlt")
-      // We check for 'onboardingCompleted' = true in the main users doc
+      // Check if a welcome notification already exists to prevent spamming on every app load
+      final existing = await notifCollection.where('type', isEqualTo: 'welcome').limit(1).get();
+      if (existing.docs.isNotEmpty) {
+        return; // We already sent a welcome notification to this user
+      }
+
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -136,7 +139,6 @@ class FirebaseMessagingService {
           'type': 'welcome',
         });
 
-        // Trigger local push notification banner
         NotificationService.instance.showForegroundNotification(uid.hashCode, title, body);
         return;
       }
@@ -152,7 +154,6 @@ class FirebaseMessagingService {
         'type': 'welcome',
       });
       
-      // Trigger local push notification banner
       NotificationService.instance.showForegroundNotification(uid.hashCode, title, body);
       debugPrint('FCM: Welcome notification written and pushed');
     } catch (e) {

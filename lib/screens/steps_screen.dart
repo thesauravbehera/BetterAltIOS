@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fat_burner/services/health_service.dart';
 import 'package:fat_burner/theme/app_colors.dart';
@@ -21,6 +20,9 @@ class _StepsScreenState extends State<StepsScreen> {
   int todaySteps = 0;
   int avgSteps = 0;
   bool isLoading = true;
+
+  /// Goal for daily steps
+  static const int goalSteps = 10000;
 
   @override
   void initState() {
@@ -68,10 +70,14 @@ class _StepsScreenState extends State<StepsScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     
-    double maxSteps = 10000;
+    // Dynamic max: use goal or highest day value (whichever is larger) + buffer
+    int highestDay = 0;
     for (int s in weeklySteps) {
-      if (s > maxSteps) maxSteps = s.toDouble() + 2000;
+      if (s > highestDay) highestDay = s;
     }
+    double maxSteps = (highestDay > goalSteps)
+        ? highestDay.toDouble() + 2000
+        : goalSteps * 1.2;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.canvasDark : AppColors.canvasLight,
@@ -137,7 +143,7 @@ class _StepsScreenState extends State<StepsScreen> {
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(6),
                                       child: LinearProgressIndicator(
-                                        value: (todaySteps / 10000).clamp(0.0, 1.0),
+                                        value: (todaySteps / goalSteps).clamp(0.0, 1.0),
                                         backgroundColor: Colors.white24,
                                         valueColor: const AlwaysStoppedAnimation(AppColors.accentGlow),
                                         minHeight: 8,
@@ -145,7 +151,7 @@ class _StepsScreenState extends State<StepsScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      "${((todaySteps / 10000) * 100).toStringAsFixed(0)}% of 10,000 goal",
+                                      "${((todaySteps / goalSteps) * 100).toStringAsFixed(0)}% of ${(goalSteps / 1000).toStringAsFixed(0)},000 goal",
                                       style: AppTypography.caption(color: Colors.white70),
                                     ),
                                   ],
@@ -187,7 +193,7 @@ class _StepsScreenState extends State<StepsScreen> {
 
                       const SizedBox(height: 20),
 
-                      /// Chart
+                      /// Chart with goal line at 10k
                       Expanded(
                         child: FadeInUp(
                           delay: const Duration(milliseconds: 400),
@@ -220,7 +226,7 @@ class _StepsScreenState extends State<StepsScreen> {
                                   bottomTitles: AxisTitles(
                                     sideTitles: SideTitles(
                                       showTitles: true,
-                                      interval: 1, // Fixes repeated letters
+                                      interval: 1,
                                       getTitlesWidget: (v, _) {
                                         if (v.toInt() >= weeklyDays.length || v.toInt() < 0) return const SizedBox();
                                         return Padding(
@@ -233,6 +239,26 @@ class _StepsScreenState extends State<StepsScreen> {
                                       },
                                     ),
                                   ),
+                                ),
+                                // Goal line at 10,000 steps
+                                extraLinesData: ExtraLinesData(
+                                  horizontalLines: [
+                                    HorizontalLine(
+                                      y: goalSteps.toDouble(),
+                                      color: isDark ? Colors.white38 : Colors.black26,
+                                      strokeWidth: 1.5,
+                                      dashArray: [8, 4],
+                                      label: HorizontalLineLabel(
+                                        show: true,
+                                        alignment: Alignment.topRight,
+                                        padding: const EdgeInsets.only(right: 4, bottom: 2),
+                                        style: AppTypography.caption(
+                                          color: isDark ? Colors.white54 : Colors.black45,
+                                        ).copyWith(fontSize: 10, fontWeight: FontWeight.w700),
+                                        labelResolver: (_) => '10k goal',
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 lineBarsData: [
                                   LineChartBarData(
@@ -247,9 +273,9 @@ class _StepsScreenState extends State<StepsScreen> {
                                     isStrokeCapRound: true,
                                     dotData: FlDotData(
                                       show: true,
-                                      getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                                      getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
                                         radius: 6,
-                                        color: AppColors.accent,
+                                        color: spot.y >= goalSteps ? AppColors.success : AppColors.accent,
                                         strokeColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
                                         strokeWidth: 3,
                                       ),

@@ -2,4 +2,5 @@
 <resources>
     <!-- BetterAlt splash background (white as requested) -->
     <color name="splash_bg">#FFFFFF</color>
+	<color name="ic_launcher_background">#1B412B</color>
 </resources>

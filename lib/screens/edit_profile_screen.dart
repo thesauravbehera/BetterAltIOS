@@ -497,13 +497,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Icon(icon, color: AppColors.accent, size: 18),
         ),
         const SizedBox(width: 10),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: isDark ? AppColors.textOnDark : AppColors.textPrimary,
-            letterSpacing: 0.3,
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: isDark ? AppColors.textOnDark : AppColors.textPrimary,
+              letterSpacing: 0.3,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

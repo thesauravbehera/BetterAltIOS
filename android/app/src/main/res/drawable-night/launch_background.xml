@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- BetterAlt Splash Screen (Light Mode) -->
+<!-- BetterAlt Splash Screen (Dark Mode) -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/splash_bg" />
 
@@ -10,6 +10,6 @@
         android:gravity="center">
         <bitmap
             android:gravity="center"
-            android:src="@drawable/splash_logo" />
+            android:src="@drawable/splash_logo_dark" />
     </item>
 </layer-list>

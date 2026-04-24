@@ -12,17 +12,17 @@ class AppColors {
   static const Color surfaceLight      = Color(0xFFFFFFFF); // Pure white cards
   static const Color surfaceElevated   = Color(0xFFDECDB3); // Primary #2 — input fields
 
-  // Dark Mode — deep forest from Secondary palette
-  static const Color canvasDark        = Color(0xFF0F1F14); // Deeper than #1b412b
-  static const Color surfaceDark       = Color(0xFF1B412B); // Secondary darkest — cards
-  static const Color surfaceElevatedDk = Color(0xFF2E704A); // Secondary #4 — elevated cards
+  // Dark Mode — sleek modern black (Blinkit / Swiggy inspired)
+  static const Color canvasDark        = Color(0xFF0A0A0A); // Near-black background
+  static const Color surfaceDark       = Color(0xFF161616); // Dark gray cards
+  static const Color surfaceElevatedDk = Color(0xFF1E1E1E); // Slightly lighter elevated
 
   // === STRUCTURE (Borders, dividers) ===
   static const Color structurePrimary  = Color(0xFF2E704A); // Secondary dark green
   static const Color structureSecondary= Color(0xFF42A26B); // Secondary mid green
   static const Color structureMuted    = Color(0xFF7B5F35); // Primary dark brown
   static const Color borderLight       = Color(0xFFD2D2D2); // Neutral #3
-  static const Color borderDark        = Color(0xFF2E704A); // Secondary dark green border
+  static const Color borderDark        = Color(0xFF2A2A2A); // Subtle gray border
 
   // === ACCENT (CTAs, highlights, brand) ===
   static const Color accent            = Color(0xFF42A26B); // Secondary mid — main brand green
@@ -40,8 +40,8 @@ class AppColors {
   static const Color textSecondary     = Color(0xFF606060); // Neutral #9
   static const Color textTertiary      = Color(0xFF8E8E8E); // Neutral #6
   static const Color textOnAccent      = Color(0xFFFFFFFF); // White on green buttons
-  static const Color textOnDark        = Color(0xFFEFE6D9); // Primary lightest — warm white
-  static const Color textOnDarkMuted   = Color(0xFF9BD6B4); // Secondary lightest — mint muted
+  static const Color textOnDark        = Color(0xFFFFFFFF); // Pure white
+  static const Color textOnDarkMuted   = Color(0xFF8E8E8E); // Neutral gray muted
 
   // === CHART COLORS ===
   static const Color chartGreen        = Color(0xFF42A26B); // Secondary mid

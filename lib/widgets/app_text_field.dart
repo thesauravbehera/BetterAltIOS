@@ -68,7 +68,7 @@ class _AppTextFieldState extends State<AppTextField> {
         Text(
           widget.label,
           style: TextStyle(
-            color: _isFocused ? AppColors.accent : AppColors.textSecondary,
+            color: _isFocused ? AppColors.accent : (isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary),
             fontSize: 13,
             fontWeight: _isFocused ? FontWeight.w600 : FontWeight.w500,
             letterSpacing: 0.3,
@@ -117,10 +117,10 @@ class _AppTextFieldState extends State<AppTextField> {
             onChanged: widget.onChanged,
             maxLength: widget.maxLength,
             buildCounter: (context, {required currentLength, required isFocused, required maxLength}) => null,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+            style: TextStyle(color: isDark ? AppColors.textOnDark : AppColors.textPrimary, fontSize: 16),
             decoration: InputDecoration(
               hintText: widget.hint,
-              hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
+              hintStyle: TextStyle(color: isDark ? AppColors.textOnDarkMuted.withValues(alpha: 0.6) : AppColors.textSecondary, fontSize: 15),
               filled: true,
               fillColor: Colors.transparent, // Fixes the beige override from global theme
               border: InputBorder.none,
@@ -128,7 +128,7 @@ class _AppTextFieldState extends State<AppTextField> {
               prefixIcon: widget.prefixIcon != null
                   ? Icon(
                       widget.prefixIcon, 
-                      color: _isFocused ? AppColors.accent : AppColors.textSecondary, 
+                      color: _isFocused ? AppColors.accent : (isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary), 
                       size: 22
                     )
                   : null,

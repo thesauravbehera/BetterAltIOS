@@ -390,4 +390,36 @@ class NotificationService {
       notificationDetails: const NotificationDetails(android: androidDetails),
     );
   }
+
+  /// Sends an immediate welcome-back local notification and logs it in the in-app notifications
+  Future<void> sendLoginNotification() async {
+    await initialize();
+
+    const title = 'Welcome! 👋';
+    const body = 'Let\'s crush your fat burning goals today.';
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'instant_alerts',
+      'Alerts',
+      channelDescription: 'Important immediate alerts',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: 'ic_notification',
+    );
+
+    // 1. Show instant phone push notification
+    await _localNotificationsPlugin.show(
+      id: 100, // ID 100 to avoid conflicts
+      title: title,
+      body: body,
+      notificationDetails: const NotificationDetails(android: androidDetails),
+    );
+
+    // 2. Add to in-app notifications (Firestore)
+    await _storeToFirestore(
+      title: title,
+      body: body,
+      type: 'login_welcome', // De-dupes automatically by day
+    );
+  }
 }

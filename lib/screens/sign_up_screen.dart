@@ -1,5 +1,6 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +11,7 @@ import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_typography.dart';
 import 'package:fat_burner/theme/app_spacing.dart';
 import 'package:fat_burner/widgets/app_text_field.dart';
+import 'package:fat_burner/services/notification_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   final Map<String, dynamic>? onboardingData;
@@ -198,6 +200,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   /// Route user based on whether they have completed onboarding already
   Future<void> _routeAfterAuth(User user) async {
+    await NotificationService.instance.sendLoginNotification();
+    await NotificationService.instance.scheduleDailyReminders();
+    
     final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     final data = doc.data();
     if (data != null && data['onboardingCompleted'] == true) {
@@ -284,11 +289,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      /// Main Logo
+                      /// Main Logo — dark mode uses white logo PNG, light mode uses original JPEG
                       ClipRRect(
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
                         child: Image.asset(
-                          'images/Betteralt_main_logo.jpeg',
+                          isDark ? 'images/White_Logo.png' : 'images/Betteralt_main_logo.jpeg',
                           width: double.infinity,
                           fit: BoxFit.fitWidth,
                           errorBuilder: (context, error, stackTrace) {
@@ -504,11 +509,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              "Already have an account? ",
-                              style: AppTypography.body(
-                                      color: isDark ? AppColors.textOnDark : AppColors.textPrimary)
-                                  .copyWith(fontSize: 14),
+                            Flexible(
+                              child: Text(
+                                "Already have an account? ",
+                                style: AppTypography.body(
+                                        color: isDark ? AppColors.textOnDark : AppColors.textPrimary)
+                                    .copyWith(fontSize: 14),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             TextButton(
                               onPressed: () {
@@ -530,7 +538,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ),
 
+                      const SizedBox(height: 15),
 
+                      /// Privacy Policy Link
+                      Center(
+                        child: TextButton(
+                          onPressed: () {
+                            context.push('/privacy'); // Route to privacy policy
+                          },
+                          child: Text(
+                            "By continuing, you agree to our Privacy Policy",
+                            style: AppTypography.body(
+                                color: isDark ? AppColors.textOnDarkMuted : AppColors.textSecondary)
+                                .copyWith(fontSize: 12, decoration: TextDecoration.underline),
+                          ),
+                        ),
+                      ),
+                      
                       const SizedBox(height: 30),
                       ], // end inner column children
                     ), // end inner Column

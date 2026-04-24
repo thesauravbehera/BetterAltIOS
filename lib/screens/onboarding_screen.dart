@@ -9,6 +9,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_typography.dart';
 import 'package:fat_burner/widgets/app_text_field.dart';
+import 'package:fat_burner/services/notification_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -81,6 +82,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final topicName = 'dose_${_selectedTiming.replaceAll('-', '_')}';
       try {
         await FirebaseMessaging.instance.subscribeToTopic(topicName);
+        // Refresh local daily reminders based on new timing
+        await NotificationService.instance.scheduleDailyReminders();
       } catch (e) {
         debugPrint('FCM Subscribe Error: $e');
       }
@@ -451,7 +454,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               color: isSelected ? AppColors.accent : Colors.grey,
             ),
             const SizedBox(width: 16),
-            Text(label, style: AppTypography.h3(color: isDark ? AppColors.textOnDark : AppColors.textPrimary).copyWith(fontSize: 16)),
+            Expanded(
+              child: Text(label, style: AppTypography.h3(color: isDark ? AppColors.textOnDark : AppColors.textPrimary).copyWith(fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
       ),
@@ -482,7 +487,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(title, style: AppTypography.label(color: AppColors.accent)),
+                    Flexible(child: Text(title, style: AppTypography.label(color: AppColors.accent), overflow: TextOverflow.ellipsis)),
+                    const SizedBox(width: 8),
                     Text(subtitle, style: AppTypography.body(color: isDark ? AppColors.textOnDark : AppColors.textPrimary).copyWith(fontWeight: FontWeight.bold)),
                   ],
                 ),
