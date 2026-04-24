@@ -6,6 +6,7 @@ import 'package:fat_burner/screens/purchase_gate_screen.dart';
 import 'package:fat_burner/screens/sign_up_screen.dart';
 import 'package:fat_burner/screens/verification_gate_screen.dart';
 import 'package:fat_burner/screens/onboarding_screen.dart';
+import 'package:fat_burner/screens/privacy_screen.dart';
 import 'package:fat_burner/services/auth_service.dart';
 
 /// Centralized routing configuration.
@@ -17,6 +18,7 @@ class AppRouter {
   static const String verify = '/verify';
   static const String paywall = '/paywall';
   static const String onboarding = '/onboarding';
+  static const String privacy = '/privacy';
 
   static final GoRouter router = GoRouter(
     initialLocation: login,
@@ -25,6 +27,7 @@ class AppRouter {
     redirect: (context, state) {
       final isLoggedIn = AuthService.instance.isLoggedIn;
       final isAuthRoute = state.matchedLocation == login || state.matchedLocation == signup;
+      final isPublicRoute = isAuthRoute || state.matchedLocation == privacy;
 
       // If logged in and trying to visit login/signup, redirect to verification gate
       if (isLoggedIn && isAuthRoute) {
@@ -32,8 +35,8 @@ class AppRouter {
       }
       
       // If not logged in and trying to access protected routes, redirect to login
-      // Allow /onboarding since user might be authenticated but not onboarded yet
-      if (!isLoggedIn && !isAuthRoute) {
+      // Allow /privacy since it must be accessible from the login screen (Apple requirement)
+      if (!isLoggedIn && !isPublicRoute) {
         return login;
       }
       return null;
@@ -68,6 +71,11 @@ class AppRouter {
         path: onboarding,
         name: 'onboarding',
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: privacy,
+        name: 'privacy',
+        builder: (context, state) => const PrivacyScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

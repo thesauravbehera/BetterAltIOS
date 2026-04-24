@@ -98,8 +98,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         try {
           final storageRef = FirebaseStorage.instance
               .ref()
-              .child('profile_photos')
-              .child('${user.uid}.jpg');
+              .child('users')
+              .child(user.uid)
+              .child('profile_photo.jpg');
           await storageRef.putFile(
             _selectedImage!,
             SettableMetadata(contentType: 'image/jpeg'),

@@ -58,11 +58,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAKWv8v2Hb5-Hl77tiXbHH_uAX8mwiwMVE',
-    appId: '1:231893834616:ios:e8e67e487c21caf4d2868d',
+    apiKey: 'AIzaSyCkpOpGIO-u2RrKtYjLCkb8KGJjQVM3uSc',
+    appId: '1:231893834616:ios:963ffc76f4b33b89d2868d',
     messagingSenderId: '231893834616',
     projectId: 'fatburner---app',
     storageBucket: 'fatburner---app.firebasestorage.app',
-    iosBundleId: 'com.fatburner.fatBurner',
+    iosBundleId: 'in.betteralt.app',
   );
 }

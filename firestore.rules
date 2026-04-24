@@ -20,14 +20,17 @@ service cloud.firestore {
       }
     }
     
-    // Secure public check for phone existence
+    // Secure check for phone existence
     match /phone_registry/{phoneId} {
-      // allow reading a specific phone document to check if it exists
+      // Allow unauthenticated users to check if a SPECIFIC phone exists (required for sign-up flow)
       allow get: if true;
-      // explicitly deny enumerating/scraping the collection
+      // Deny enumerating/scraping the entire collection
       allow list: if false;
-      // allow authenticated users to update their own entries
-      allow write: if request.auth != null;
+      // Only allow writing your OWN phone number (matches auth phone number)
+      allow create: if request.auth != null &&
+                      phoneId == request.auth.token.phone_number;
+      // Deny updates/deletes from client
+      allow update, delete: if false;
     }
   }
 }

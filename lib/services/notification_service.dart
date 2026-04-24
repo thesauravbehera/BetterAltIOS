@@ -194,7 +194,12 @@ class NotificationService {
       priority: Priority.high,
       icon: 'ic_notification',
     );
-    const NotificationDetails details = NotificationDetails(android: androidDetails);
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    const NotificationDetails details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     // Schedule Capsule 1 (15 min before slot start)
     await _localNotificationsPlugin.zonedSchedule(
@@ -354,12 +359,18 @@ class NotificationService {
         priority: Priority.high,
         icon: 'ic_notification',
       );
+      const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      const NotificationDetails notifDetails = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
       await _localNotificationsPlugin.show(
         id: 8,
         title: 'Only 2 Days Left! ⚠️',
         body: 'You\'re crushing it! Remember, after 10 days, camera verification becomes strictly required to log capsules.',
-        notificationDetails: const NotificationDetails(android: androidDetails),
+        notificationDetails: notifDetails,
       );
 
       // Also store to Firestore so it appears in the in-app Notifications box
@@ -383,11 +394,16 @@ class NotificationService {
       priority: Priority.high,
       icon: 'ic_notification',
     );
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
     await _localNotificationsPlugin.show(
       id: id,
       title: title,
       body: body,
-      notificationDetails: const NotificationDetails(android: androidDetails),
+      notificationDetails: const NotificationDetails(android: androidDetails, iOS: iosDetails),
     );
   }
 
@@ -406,13 +422,18 @@ class NotificationService {
       priority: Priority.high,
       icon: 'ic_notification',
     );
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
 
     // 1. Show instant phone push notification
     await _localNotificationsPlugin.show(
       id: 100, // ID 100 to avoid conflicts
       title: title,
       body: body,
-      notificationDetails: const NotificationDetails(android: androidDetails),
+      notificationDetails: const NotificationDetails(android: androidDetails, iOS: iosDetails),
     );
 
     // 2. Add to in-app notifications (Firestore)

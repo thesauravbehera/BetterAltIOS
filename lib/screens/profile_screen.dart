@@ -312,9 +312,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       if (await inAppReview.isAvailable()) {
                         await inAppReview.requestReview();
                       } else {
-                        // NOTE: For Android, openStoreListing routes via app bundle id (which it detects automatically). 
-                        // For iOS, appStoreId must be your numeric App Store Connect ID.
-                        await inAppReview.openStoreListing(appStoreId: 'YOUR_APPLE_ID');
+                        // App Store listing not yet available — show friendly message
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text("Thanks for wanting to rate us! Reviews will be available soon on the App Store."),
+                              backgroundColor: AppColors.accent,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          );
+                        }
                       }
                     } catch (e) {
                       debugPrint('Error opening review: $e');
