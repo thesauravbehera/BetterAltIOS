@@ -55,12 +55,9 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
         }
       }
 
-      final bool hasCompletedOnboarding = userData['onboardingCompleted'] ?? false;
-      if (!hasCompletedOnboarding) {
-        if (mounted) context.go('/onboarding');
-        return;
-      }
-
+      // Bypass onboarding check here. Onboarding is reserved for sign-up flow
+      // per user requirements. If they hit this gate, they are either an existing
+      // user logging in, or they just finished onboarding.
       final bool hasPurchasedCache = userData['has_purchased'] ?? false;
       
       // If we already know they purchased, let them in immediately!
@@ -102,7 +99,7 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
       } catch (_) {
         // Shopify check failed (likely no internet) — proceed anyway
       }
-      
+
       if (mounted) context.go('/dashboard');
     } catch (e) {
       // On catastrophic error, let them in anyway but don't save true

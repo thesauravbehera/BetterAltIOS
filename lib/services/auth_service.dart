@@ -22,7 +22,7 @@ class AuthService {
 
   UserModel? get currentUser => _currentUser;
 
-  bool get isLoggedIn => _currentUser != null;
+  bool get isLoggedIn => _auth.currentUser != null;
 
   Future<void> _onAuthStateChanged(User? user) async {
     if (user == null) {

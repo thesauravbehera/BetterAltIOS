@@ -96,7 +96,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             currentStreak = 1;
             expectedDate = DateTime.parse(d.id).subtract(const Duration(days: 1));
             if (d.id == todayStr) missedToday = false;
-          } else if (d.id == expectedDate!.toIso8601String().substring(0, 10)) {
+          } else if (d.id == expectedDate.toIso8601String().substring(0, 10)) {
             // Document matches expected continuous day
             currentStreak++;
             expectedDate = expectedDate.subtract(const Duration(days: 1));
@@ -313,7 +313,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         await inAppReview.requestReview();
                       } else {
                         // App Store listing not yet available — show friendly message
-                        if (mounted) {
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: const Text("Thanks for wanting to rate us! Reviews will be available soon on the App Store."),
@@ -360,6 +360,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+
 
               const SizedBox(height: 100),
             ],

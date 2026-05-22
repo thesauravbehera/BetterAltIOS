@@ -65,5 +65,6 @@ class DefaultFirebaseOptions {
     projectId: 'fatburner---app',
     storageBucket: 'fatburner---app.firebasestorage.app',
     iosBundleId: 'in.betteralt.app',
+    iosClientId: '231893834616-4v6jtvgssji3dsimeu1lltjpeo5pcg21.apps.googleusercontent.com',
   );
 }

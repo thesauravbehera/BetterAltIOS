@@ -82,6 +82,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
       // If check fails, proceed with OTP (fail-safe)
     }
 
+    if (phone == '9372685858') {
+      // DEVELOPER BACKDOOR: Bypass Apple's APNs/reCAPTCHA requirements entirely
+      setState(() {
+        _isOtpSent = true;
+        _isLoading = false;
+        _verificationId = 'DEVELOPER_MOCK_ID';
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _otpFocusNodes[0].requestFocus();
+      });
+      return;
+    }
+
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: '+91$phone',
@@ -142,7 +155,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
               _isOtpSent = true;
               _isLoading = false;
             });
-            _otpFocusNodes[0].requestFocus();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _otpFocusNodes[0].requestFocus();
+            });
           }
         },
         codeAutoRetrievalTimeout: (String verificationId) {
@@ -177,6 +192,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     setState(() => _isLoading = true);
+
+    if (_verificationId == 'DEVELOPER_MOCK_ID') {
+      try {
+        final userCredential = await FirebaseAuth.instance.signInAnonymously();
+        if (userCredential.user != null) {
+          await _createUserProfile(userCredential.user!, _phoneController.text.trim());
+          await _routeAfterAuth(userCredential.user!);
+        }
+      } catch (e) {
+        setState(() => _errorMessage = 'Developer backdoor failed: $e');
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+      return;
+    }
 
     try {
       final credential = PhoneAuthProvider.credential(

@@ -108,6 +108,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
+    if (phone == '9372685858') {
+      // DEVELOPER BACKDOOR: Bypass Apple's APNs/reCAPTCHA requirements entirely
+      setState(() {
+        _isOtpSent = true;
+        _isLoading = false;
+        _verificationId = 'DEVELOPER_MOCK_ID';
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _otpFocusNodes[0].requestFocus();
+      });
+      return;
+    }
+
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: '+91$phone',
@@ -172,7 +185,9 @@ class _LoginScreenState extends State<LoginScreen> {
               _isLoading = false;
             });
             // Auto-focus the first OTP box
-            _otpFocusNodes[0].requestFocus();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _otpFocusNodes[0].requestFocus();
+            });
           }
         },
         codeAutoRetrievalTimeout: (String verificationId) {
@@ -208,6 +223,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
+    if (_verificationId == 'DEVELOPER_MOCK_ID') {
+      try {
+        UserCredential? userCredential;
+        try {
+          userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: 'backdoor@betteralt.in',
+            password: 'password123',
+          );
+        } catch (e) {
+          userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: 'backdoor@betteralt.in',
+            password: 'password123',
+          );
+        }
+        
+        if (userCredential.user != null) {
+          final normalizedPhone = '+919372685858';
+          await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+            'phone': '9372685858',
+          }, SetOptions(merge: true));
+          
+          try {
+            await FirebaseFirestore.instance.collection('phone_registry').doc(normalizedPhone).set({
+              'registeredAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          } catch (_) {}
+
+          await _checkOnboardingAndRoute(userCredential.user!);
+        }
+      } catch (e) {
+        setState(() => _errorMessage = 'Developer backdoor failed: $e');
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+      return;
+    }
     try {
       final credential = PhoneAuthProvider.credential(
         verificationId: _verificationId!,

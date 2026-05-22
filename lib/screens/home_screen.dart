@@ -16,13 +16,11 @@ import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_spacing.dart';
 import 'package:fat_burner/theme/app_typography.dart';
 import 'package:fat_burner/widgets/widgets.dart';
-import 'package:fat_burner/widgets/weekly_chart.dart';
 
 import 'package:fat_burner/constants/motivation_messages.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:fat_burner/providers/providers.dart';
 import 'package:fat_burner/services/notification_service.dart';
 import 'package:fat_burner/services/health_service.dart';
 import 'package:fat_burner/services/shopify_purchase_service.dart';
@@ -434,8 +432,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final bool isCapsule = (type == 'Dose1' || type == 'Dose2');
-    // 10-day trust period: skip camera for the first 10 days
-    final bool skipCamera = isCapsule && (streakData.length <= 10);
+    // Camera verification always active (trust period disabled)
+    final bool skipCamera = false;
 
     XFile? photo;
     if (!skipCamera) {

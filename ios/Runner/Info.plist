@@ -59,8 +59,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>BetterAlt reads your daily steps, active calories burned, walking and running distance, and sleep duration from Apple Health to display your fitness progress on the dashboard and track your 90-day capsule streak.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>BetterAlt writes your hydration and workout data to Apple Health to keep your fitness profile synchronized.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>BetterAlt uses the camera to let you take a profile photo and verify your daily capsule intake.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -71,6 +78,18 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.231893834616-4v6jtvgssji3dsimeu1lltjpeo5pcg21</string>
+				<string>app-1-231893834616-ios-963ffc76f4b33b89d2868d</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

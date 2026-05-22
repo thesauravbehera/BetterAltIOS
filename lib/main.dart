@@ -45,14 +45,18 @@ void main() async {
   try {
     await FirebaseAppCheck.instance.activate(
       androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.deviceCheck,
+      appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
     ).timeout(const Duration(seconds: 5));
   } catch (e) {
     debugPrint("App Check init skipped (offline?): $e");
   }
 
   /// 🔥 Register background handler
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  try {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint("Background message handler error (non-fatal): $e");
+  }
 
   /// 🔥 Initialize FCM and Notification Services
   try {
@@ -61,7 +65,16 @@ void main() async {
     await NotificationService.instance.scheduleDailyReminders()
         .timeout(const Duration(seconds: 5));
   } catch (e) {
-    debugPrint("Notification init error: $e");
+    debugPrint("Notification init error (non-fatal): $e");
+  }
+
+  /// ✅ Disable APNs verification in debug mode so Firebase test phone numbers work on iOS
+  try {
+    await FirebaseAuth.instance.setSettings(
+      appVerificationDisabledForTesting: kDebugMode,
+    );
+  } catch (e) {
+    debugPrint("Auth settings error (non-fatal): $e");
   }
 
   runApp(const FatBurnerApp());
@@ -92,35 +105,6 @@ class FatBurnerApp extends StatelessWidget {
         /// 🔐 Routing
         routerConfig: AppRouter.router,
       ),
-    );
-  }
-}
-
-/// 🔐 AUTH GATE (Auto-login logic)
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-
-        /// 🔄 Loading
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        /// ✅ Logged in
-        if (snapshot.hasData) {
-          return const MainScreen();
-        }
-
-        /// ❌ Not logged in
-        return const LoginScreen();
-      },
     );
   }
 }
