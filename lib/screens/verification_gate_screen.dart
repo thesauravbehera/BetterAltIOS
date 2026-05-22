@@ -31,9 +31,29 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
         return;
       }
 
-      // 1. Fetch user data from Firestore
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      final userData = userDoc.data() ?? {};
+      // 1. Fetch user data from Firestore (with timeout + cache fallback)
+      Map<String, dynamic> userData = {};
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 5));
+        userData = userDoc.data() ?? {};
+      } catch (_) {
+        // Server failed/timed out — try local cache
+        try {
+          final cachedDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get(const GetOptions(source: Source.cache));
+          userData = cachedDoc.data() ?? {};
+        } catch (_) {
+          // No cache either — proceed with empty data, let them into dashboard
+          if (mounted) context.go('/dashboard');
+          return;
+        }
+      }
 
       final bool hasCompletedOnboarding = userData['onboardingCompleted'] ?? false;
       if (!hasCompletedOnboarding) {
@@ -74,14 +94,13 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
         // If already has country code, keep as-is
       }
 
-      // 2. Perform Shopify Validation
-      final provider = PurchaseStatusProvider.instance;
-      await provider.checkPurchase(email: actualEmail, phone: actualPhone);
-
-      if (provider.hasPurchased == true) {
-        // Validation success. The Cloud Function already saved this state to Firestore.
-      } else {
-        // Failed purchase check. The Cloud Function already recorded this.
+      // 2. Perform Shopify Validation (skip if offline)
+      try {
+        final provider = PurchaseStatusProvider.instance;
+        await provider.checkPurchase(email: actualEmail, phone: actualPhone)
+            .timeout(const Duration(seconds: 8));
+      } catch (_) {
+        // Shopify check failed (likely no internet) — proceed anyway
       }
       
       if (mounted) context.go('/dashboard');

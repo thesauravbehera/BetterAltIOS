@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_typography.dart';
+import 'package:fat_burner/widgets/connectivity_banner.dart';
 
 import 'home_screen.dart';
 import 'health_screen.dart';
@@ -32,13 +33,15 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.canvasDark : AppColors.canvasLight,
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: _screens,
+      body: ConnectivityBanner(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          child: IndexedStack(
+            index: _selectedIndex,
+            children: _screens,
+          ),
         ),
       ),
       bottomNavigationBar: Container(

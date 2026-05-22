@@ -7,7 +7,7 @@ import 'package:health/health.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:fat_burner/models/health_data_model.dart';
+
 
 class HealthService {
   HealthService._();
@@ -19,19 +19,13 @@ class HealthService {
     HealthDataType.STEPS,
     HealthDataType.ACTIVE_ENERGY_BURNED,
     HealthDataType.TOTAL_CALORIES_BURNED,
-    HealthDataType.BASAL_ENERGY_BURNED,
-    HealthDataType.WEIGHT,
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.SLEEP_ASLEEP,
     HealthDataType.SLEEP_SESSION,
-    HealthDataType.WATER,
   ];
 
   static const List<HealthDataAccess> _permissions = [
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
@@ -160,49 +154,7 @@ class HealthService {
     return total.round();
   }
 
-  /// Get latest weight
-  Future<double?> getLatestWeight() async {
-    await configure();
-    final now = DateTime.now();
-    final past = now.subtract(const Duration(days: 365));
 
-    final data = await _health.getHealthDataFromTypes(
-      types: const [HealthDataType.WEIGHT],
-      startTime: past,
-      endTime: now,
-    );
-
-    if (data.isEmpty) return null;
-
-    data.sort((a, b) => b.dateFrom.compareTo(a.dateFrom));
-
-    final latest = data.first;
-
-    if (latest.value is NumericHealthValue) {
-      return (latest.value as NumericHealthValue).numericValue.toDouble();
-    }
-
-    return null;
-  }
-
-  /// Combined model (optional)
-  Future<HealthDataModel?> getTodayHealthData(String userId) async {
-    await configure();
-
-    final steps = await getTodaySteps();
-    final caloriesBurned = await getTodayCaloriesBurned();
-    final weight = await getLatestWeight();
-
-    return HealthDataModel(
-      id: 'today-${DateTime.now().millisecondsSinceEpoch}',
-      userId: userId,
-      date: DateTime.now(),
-      steps: steps,
-      weight: weight,
-      caloriesBurned: caloriesBurned,
-      caloriesConsumed: null,
-    );
-  }
 
   /// ⭐ Normalize health data
   Map<String, dynamic> normalizeHealthData(Map<String, dynamic> rawData) {
@@ -239,7 +191,6 @@ class HealthService {
     double calories = (await getTodayCaloriesBurned()).toDouble();
     double distance = 0;
     double sleepMin = 0;
-    double waterLiters = 0;
 
     // Fetch Distance safely
     try {
@@ -271,26 +222,14 @@ class HealthService {
       debugPrint("FatBurner DEBUG Sleep Error: $e");
     }
 
-    // Fetch Water safely
-    try {
-      final waterData = await _health.getHealthDataFromTypes(
-        startTime: midnight, endTime: now, types: [HealthDataType.WATER]
-      );
-      for (final p in waterData) {
-        if (p.value is NumericHealthValue) waterLiters += (p.value as NumericHealthValue).numericValue;
-      }
-    } catch (e) {
-      debugPrint("FatBurner DEBUG Water Error: $e");
-    }
-
-    debugPrint("FatBurner DEBUG Results - Steps: $steps, Calories: $calories, Dist: $distance, Sleep: $sleepMin, Water: $waterLiters");
+    debugPrint("FatBurner DEBUG Results - Steps: $steps, Calories: $calories, Dist: $distance, Sleep: $sleepMin");
 
     final rawData = {
       'steps': steps,
       'calories': calories,
       'distance': distance / 1000.0, // convert meters to kilometers
       'sleep': sleepMin / 60.0, // convert to hours
-      'water': waterLiters,
+      'water': 0.0, // Hydration permission removed per Google Play policy
     };
 
     return rawData;

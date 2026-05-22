@@ -13,31 +13,24 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- Health Connect: Steps -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
-    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
     <!-- Health Connect: Active calories burned -->
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
-    <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" />
-    <!-- Health Connect: Basal calories burned -->
-    <uses-permission android:name="android.permission.health.READ_BASAL_METABOLIC_RATE" />
-    <uses-permission android:name="android.permission.health.WRITE_BASAL_METABOLIC_RATE" />
+
     <!-- Health Connect: Distance -->
     <uses-permission android:name="android.permission.health.READ_DISTANCE" />
-    <uses-permission android:name="android.permission.health.WRITE_DISTANCE" />
-    <!-- Health Connect: Weight -->
-    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
-    <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
+
     <!-- Health Connect: Sleep -->
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
-    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
-    <!-- Health Connect: Hydration -->
-    <uses-permission android:name="android.permission.health.READ_HYDRATION" />
-    <uses-permission android:name="android.permission.health.WRITE_HYDRATION" />
+
     <!-- Health Connect: Total Calories -->
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <!-- Health Connect: Historical data (>30 days) -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
     <!-- Activity recognition (required for steps) -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+    <!-- Wake lock for reliable alarm delivery in Doze mode -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <application
         android:label="BetterAlt"
@@ -92,6 +85,19 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@android:color/black" />
+
+        <!-- ✅ CRITICAL: Re-schedule local notifications after device reboot -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+        <!-- ✅ CRITICAL: Receiver that actually fires the scheduled notification -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+
         <!-- Health Connect: Privacy policy link for permission usage -->
         <activity-alias
             android:name="ViewPermissionUsageActivity"
