@@ -1,6 +1,5 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -31,6 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _verificationId;
   int? _resendToken;
   String? _errorMessage;
+  bool _isAutoVerifying = false;
 
   static const _prefKeyPhone = 'remembered_phone';
   static const _prefKeyRemember = 'remember_me';
@@ -115,9 +115,17 @@ class _LoginScreenState extends State<LoginScreen> {
         forceResendingToken: _resendToken,
         verificationCompleted: (PhoneAuthCredential credential) async {
           // Auto-verification on Android (auto-read SMS)
+          if (mounted) setState(() => _isAutoVerifying = true);
           try {
             final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
             if (userCredential.user != null) {
+              // Auto-fill the OTP boxes visually
+              final smsCode = credential.smsCode;
+              if (smsCode != null && smsCode.length == 6 && mounted) {
+                for (int i = 0; i < 6; i++) {
+                  _otpControllers[i].text = smsCode[i];
+                }
+              }
               // Guarantee phone field is present in Firestore
               await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
                 'phone': phone,
@@ -125,7 +133,12 @@ class _LoginScreenState extends State<LoginScreen> {
               await _checkOnboardingAndRoute(userCredential.user!);
             }
           } catch (e) {
-            if (mounted) setState(() => _errorMessage = 'Auto-verification failed. Please enter the OTP manually.');
+            if (mounted) {
+              setState(() {
+                _isAutoVerifying = false;
+                _errorMessage = 'Auto-verification failed. Please enter the OTP manually.';
+              });
+            }
           }
         },
         verificationFailed: (FirebaseAuthException e) {
@@ -424,6 +437,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       /// ── OTP ENTRY ──
                       if (_isOtpSent) ...[
+                        /// Auto-verifying indicator
+                        if (_isAutoVerifying) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  height: 16, width: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  "Auto-verifying OTP...",
+                                  style: AppTypography.body(color: AppColors.accent).copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         /// 6-digit OTP boxes
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -437,6 +475,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
                                 maxLength: 1,
+                                autofillHints: index == 0 ? const [AutofillHints.oneTimeCode] : null,
                                 style: AppTypography.h2(
                                     color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
                                 decoration: InputDecoration(

@@ -55,6 +55,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '231893834616',
     projectId: 'fatburner---app',
     storageBucket: 'fatburner---app.firebasestorage.app',
+    authDomain: 'auth.betteralt.in',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

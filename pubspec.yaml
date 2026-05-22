@@ -1,7 +1,7 @@
 name: fat_burner
 description: A health tracking app for fitness and wellness goals.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+3
 
 environment:
   sdk: ^3.5.0
@@ -50,6 +50,7 @@ dependencies:
   permission_handler: ^12.0.1
   firebase_app_check: ^0.4.3
   firebase_analytics: ^12.3.0
+  connectivity_plus: ^7.1.1
 
 dependency_overrides:
   intl: ^0.20.2

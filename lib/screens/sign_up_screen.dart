@@ -1,11 +1,9 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:fat_burner/theme/app_colors.dart';
 import 'package:fat_burner/theme/app_typography.dart';
@@ -31,6 +29,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _verificationId;
   int? _resendToken;
   String? _errorMessage;
+  bool _isAutoVerifying = false;
 
   @override
   void dispose() {
@@ -90,14 +89,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
         forceResendingToken: _resendToken,
         verificationCompleted: (PhoneAuthCredential credential) async {
           // Auto-verification on Android
+          if (mounted) setState(() => _isAutoVerifying = true);
           try {
             final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
             if (userCredential.user != null) {
+              // Auto-fill the OTP boxes visually
+              final smsCode = credential.smsCode;
+              if (smsCode != null && smsCode.length == 6 && mounted) {
+                for (int i = 0; i < 6; i++) {
+                  _otpControllers[i].text = smsCode[i];
+                }
+              }
               await _createUserProfile(userCredential.user!, phone);
               await _routeAfterAuth(userCredential.user!);
             }
           } catch (e) {
-            if (mounted) setState(() => _errorMessage = 'Auto-verification failed. Please enter OTP manually.');
+            if (mounted) {
+              setState(() {
+                _isAutoVerifying = false;
+                _errorMessage = 'Auto-verification failed. Please enter OTP manually.';
+              });
+            }
           }
         },
         verificationFailed: (FirebaseAuthException e) {
@@ -392,6 +404,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                       /// ── OTP ENTRY ──
                       if (_isOtpSent) ...[
+                        /// Auto-verifying indicator
+                        if (_isAutoVerifying) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  height: 16, width: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  "Auto-verifying OTP...",
+                                  style: AppTypography.body(color: AppColors.accent).copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: List.generate(6, (index) {
@@ -404,6 +441,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
                                 maxLength: 1,
+                                autofillHints: index == 0 ? const [AutofillHints.oneTimeCode] : null,
                                 style: AppTypography.h2(
                                     color: isDark ? AppColors.textOnDark : AppColors.textPrimary),
                                 decoration: InputDecoration(

@@ -35,19 +35,31 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  /// ✅ Set custom auth domain for branded authentication
+  /// This replaces fatburner---app.firebaseapp.com with auth.betteralt.in
+  /// in all Firebase Auth flows (OAuth redirects, phone auth domain references)
+  FirebaseAuth.instance.customAuthDomain = 'auth.betteralt.in';
+
   /// ✅ Firebase App Check: Debug provider for testing, Play Integrity for production
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    appleProvider: AppleProvider.deviceCheck,
-  );
+  /// Wrapped in try-catch so app doesn't hang on splash screen without internet
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.deviceCheck,
+    ).timeout(const Duration(seconds: 5));
+  } catch (e) {
+    debugPrint("App Check init skipped (offline?): $e");
+  }
 
   /// 🔥 Register background handler
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   /// 🔥 Initialize FCM and Notification Services
   try {
-    await FirebaseMessagingService.instance.initialize();
-    await NotificationService.instance.scheduleDailyReminders();
+    await FirebaseMessagingService.instance.initialize()
+        .timeout(const Duration(seconds: 5));
+    await NotificationService.instance.scheduleDailyReminders()
+        .timeout(const Duration(seconds: 5));
   } catch (e) {
     debugPrint("Notification init error: $e");
   }

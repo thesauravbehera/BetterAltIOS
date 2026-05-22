@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:fat_burner/theme/app_colors.dart';
-import 'package:fat_burner/theme/app_typography.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 class PlantProteinScreen extends StatefulWidget {

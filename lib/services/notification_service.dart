@@ -133,6 +133,9 @@ class NotificationService {
     int slotEndHour = 20; // default fallback (8 PM)
     String preference = '';
 
+    // Check if user already took both capsules today
+    bool bothCapsulesTakenToday = false;
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -143,9 +146,25 @@ class NotificationService {
         if (doc.exists && doc.data() != null) {
           preference = doc.data()!['dose_preference'] ?? '';
         }
+
+        // Check today's daily_log for capsule completion
+        final now = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+        final todayKey = now.toIso8601String().substring(0, 10);
+        final dailyLog = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('daily_logs')
+            .doc(todayKey)
+            .get();
+        if (dailyLog.exists && dailyLog.data() != null) {
+          final data = dailyLog.data()!;
+          final dose1Done = data['capsuleDose1'] == true;
+          final dose2Done = data['capsuleDose2'] == true;
+          bothCapsulesTakenToday = dose1Done && dose2Done;
+        }
       }
     } catch (e) {
-      debugPrint('NotificationService: Failed to fetch dose_preference: $e');
+      debugPrint('NotificationService: Failed to fetch dose_preference or daily_log: $e');
     }
 
     // Map dose_preference to notification hours (15 min BEFORE slot START and 15 min BEFORE slot END)
@@ -181,10 +200,9 @@ class NotificationService {
     final rotationIndex = _getDayRotationIndex();
     final dose1Template = _dose1Templates[rotationIndex];
     final dose2Template = _dose2Templates[rotationIndex];
-    final streakTemplate = _streakWarningTemplates[rotationIndex];
     final dayEndTemplate = _dayEndStreakTemplates[rotationIndex % 2];
 
-    debugPrint('NotificationService: Scheduling Capsule 1 at $dose1Hour:${dose1Min.toString().padLeft(2, '0')}, Capsule 2 at $dose2Hour:${dose2Min.toString().padLeft(2, '0')}, Streak warning at $slotEndHour:00, Day-end Streak Check at 22:30 (preference: $preference)');
+    debugPrint('NotificationService: Scheduling Capsule 1 at $dose1Hour:${dose1Min.toString().padLeft(2, '0')}, Capsule 2 at $dose2Hour:${dose2Min.toString().padLeft(2, '0')}, Streak warning at $slotEndHour:00, Day-end Streak Check at 22:30 (preference: $preference, bothDone: $bothCapsulesTakenToday)');
 
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'daily_reminders',
@@ -224,15 +242,21 @@ class NotificationService {
     );
 
     // Schedule Day-end streak loss catch-all at 10:30 PM (22:30)
-    await _localNotificationsPlugin.zonedSchedule(
-      id: 4,
-      title: dayEndTemplate['title']!,
-      body: dayEndTemplate['body']!,
-      scheduledDate: _nextInstanceOfTime(22, 30),
-      notificationDetails: details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+    // ONLY if user has NOT already taken both capsules today
+    if (!bothCapsulesTakenToday) {
+      await _localNotificationsPlugin.zonedSchedule(
+        id: 4,
+        title: dayEndTemplate['title']!,
+        body: dayEndTemplate['body']!,
+        scheduledDate: _nextInstanceOfTime(22, 30),
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+      debugPrint('NotificationService: Day-end streak notification SCHEDULED (capsules not yet complete)');
+    } else {
+      debugPrint('NotificationService: Day-end streak notification SKIPPED (both capsules already taken today ✅)');
+    }
 
     // Also store a Firestore notification record so the Notifications screen shows it
     _storeNotificationRecord(dose1Hour, dose2Hour);
